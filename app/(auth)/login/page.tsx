@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{
-      backgroundImage: 'url(/background.png)',
+      backgroundImage: 'url(/backkk.png)',
       backgroundRepeat: 'repeat',
       backgroundSize: '45%'
     }}>
@@ -55,7 +55,7 @@ export default function LoginPage() {
             <h1 className="text-4xl font-bold text-cyan-900 mb-2">
               Hare Krishna
             </h1>
-            <p className="text-slate-700">Sign in to continue your spiritual journey</p>
+            <p className="text-white">Sign in to continue your spiritual journey</p>
           </div>
 
           {/* Login Form Card */}
@@ -143,7 +143,7 @@ export default function LoginPage() {
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-sm text-black">🕉️ "The soul is neither born, and nor does it die" - Bhagavad Gita</p>
+            <p className="text-sm text-white">🕉️ "The soul is neither born, and nor does it die" - Bhagavad Gita</p>
           </div>
         </div>
       </div>

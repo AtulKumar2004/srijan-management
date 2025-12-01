@@ -63,20 +63,19 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{
-      backgroundImage: 'url(/background.png)',
+      backgroundImage: 'url(/backkk.png)',
       backgroundRepeat: 'repeat',
-      backgroundSize: '350px auto'
+      backgroundSize: '45%'
     }}>
       {/* Signup Card */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4 py-12">
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="text-6xl mb-4">🕉️</div>
             <h1 className="text-4xl font-bold text-cyan-900 mb-2">
               Join Our Sangha
             </h1>
-            <p className="text-cyan-700">Begin your spiritual journey with us</p>
+            <p className="text-white">Begin your spiritual journey with us</p>
           </div>
 
           {/* Signup Form Card */}
@@ -208,7 +207,7 @@ export default function SignupPage() {
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-sm">🪷 "Yoga is the journey of the self, through the self, to the self" - Bhagavad Gita</p>
+            <p className="text-white">🪷 "Yoga is the journey of the self, through the self, to the self" - Bhagavad Gita</p>
           </div>
         </div>
       </div>
