@@ -2,61 +2,64 @@ import mongoose from "mongoose";
 
 const FollowUpSchema = new mongoose.Schema(
   {
-    targetType: { 
-      type: String, 
-      enum: ["user", "outreach"], 
-      required: true 
-    },
-
-    // If follow-up is for a registered user
-    targetUser: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User" 
-    },
-
-    // If follow-up is for outreach contact
-    targetOutreach: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "Outreach" 
-    },
-
-    // Volunteer/admin who created the follow-up
-    createdBy: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User", 
-      required: true 
-    },
-
-    // Assigned volunteer (default creator)
-    assignedTo: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User" 
-    },
-
-    channel: {
-      type: String,
-      enum: ["phone", "whatsapp", "email", "inperson"],
-      default: "phone"
-    },
-
-    status: {
-      type: String,
-      enum: ["pending", "done", "no-response", "not-interested"],
-      default: "pending"
-    },
-
-    notes: { type: String },
-
-    nextActionAt: { type: Date },
-
     program: { 
       type: mongoose.Schema.Types.ObjectId, 
-      ref: "Program" 
+      ref: "Program",
+      required: true 
     },
 
-    // Date of the program for which this follow-up is created
-    programDate: { 
+    // Date for which this follow-up is scheduled (e.g., program date)
+    followUpDate: { 
       type: Date, 
+      required: true 
+    },
+
+    // Type of user being followed up
+    userType: {
+      type: String,
+      enum: ["participant", "guest"],
+      required: true
+    },
+
+    // The user being followed up
+    user: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User",
+      required: true 
+    },
+
+    // Volunteer assigned to make this follow-up call
+    assignedVolunteer: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User" 
+    },
+
+    // Status after follow-up call
+    status: {
+      type: String,
+      enum: ["Coming", "Not Coming", "May Come", "Not Answered", "Not Called"],
+      default: "Not Called"
+    },
+
+    // Remarks/notes from the call
+    remarks: { 
+      type: String,
+      default: "" 
+    },
+
+    // Who actually made the call
+    calledBy: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User" 
+    },
+
+    // When the call was made
+    calledAt: { type: Date },
+
+    // Created by (admin who created the follow-up list)
+    createdBy: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "User",
       required: true 
     },
 
@@ -65,11 +68,10 @@ const FollowUpSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Indexes for fast searches
-FollowUpSchema.index({ targetUser: 1 });
-FollowUpSchema.index({ targetOutreach: 1 });
-FollowUpSchema.index({ assignedTo: 1 });
-FollowUpSchema.index({ status: 1 });
+// Compound index to ensure one follow-up per user per date per program
+FollowUpSchema.index({ program: 1, followUpDate: 1, user: 1 }, { unique: true });
+FollowUpSchema.index({ assignedVolunteer: 1, followUpDate: 1 });
+FollowUpSchema.index({ program: 1, followUpDate: 1, userType: 1 });
 
 export default mongoose.models.FollowUp ||
   mongoose.model("FollowUp", FollowUpSchema);

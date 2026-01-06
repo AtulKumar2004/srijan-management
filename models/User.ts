@@ -20,10 +20,13 @@ export interface IUser extends Document {
   howDidYouHearAboutUs?: string;
   numberOfRounds?: number;
 
-  level?: string;
+  level?: number;
   grade?: string;
   registeredBy?: string; // userId of admin/volunteer who created this record
   handledBy?: string;    // assigned volunteer for follow-up
+  maritalStatus?: string; // Single, Married, etc.
+  participantsUnder?: number; // For volunteers - number of participants they handle
+  programs?: string[]; // Array of programIds user is enrolled in
 
   isActive?: boolean;
   createdAt: Date;
@@ -60,12 +63,15 @@ const UserSchema = new Schema<IUser>(
     // fixed incorrect syntax
     numberOfRounds: { type: Number, default: 0 },
 
-    level: String,
+    level: Number,
     grade: String,
     registeredBy: String, 
     handledBy: String,
+    maritalStatus: String,
+    participantsUnder: Number,
+    programs: [String],
 
-    isActive: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: false }, // Only active after OTP verification
   },
   { timestamps: true }
 );

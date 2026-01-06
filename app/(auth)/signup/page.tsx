@@ -1,171 +1,321 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useOtpStore } from '@/store/otpStore';
+import { useAuthStore } from '@/store/authStore';
+import { Loader, User, Mail, Phone, Briefcase, Home, Building, Users, Cake, Megaphone, Sparkles, MapPin, Lock, HandHeart, Flower } from 'lucide-react';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { setOtpData } = useOtpStore();
+  const { signup, loading, error: authError } = useAuthStore();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    profession: '',
+    homeTown: '',
+    connectedToTemple: '',
+    gender: '',
+    dateOfBirth: '',
+    address: '',
+    howDidYouHearAboutUs: '',
+    numberOfRounds: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
+    setValidationError('');
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setValidationError('Passwords do not match');
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setValidationError('Password must be at least 6 characters');
       return;
     }
 
-    setLoading(true);
-
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password
-        })
+      const result = await signup({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        profession: formData.profession,
+        homeTown: formData.homeTown,
+        connectedToTemple: formData.connectedToTemple,
+        gender: formData.gender,
+        dateOfBirth: formData.dateOfBirth,
+        address: formData.address,
+        howDidYouHearAboutUs: formData.howDidYouHearAboutUs,
+        numberOfRounds: formData.numberOfRounds ? parseInt(formData.numberOfRounds) : 0
       });
 
-      const data = await response.json();
+      // Store OTP data in Zustand store
+      setOtpData(result.userId, result.channel === 'phone' ? formData.phone : formData.email, result.channel as 'phone' | 'email');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Signup failed');
-      }
-
-      // Redirect to login
-      router.push('/login?registered=true');
+      // Redirect to verify OTP page
+      router.push('/verify-otp');
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      // Error is already set in the store
+      console.error('Signup error:', err);
     }
   }
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{
-      backgroundImage: 'url(/backkk.png)',
+      backgroundImage: 'url(/backgrou.png)',
       backgroundRepeat: 'repeat',
-      backgroundSize: '45%'
+      backgroundSize: '25%'
     }}>
       {/* Signup Card */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4 py-12">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-2xl">
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-cyan-900 mb-2">
               Join Our Sangha
             </h1>
-            <p className="text-white">Begin your spiritual journey with us</p>
+            <p className="text-slate-700 font-bold">Begin your spiritual journey with us</p>
           </div>
 
           {/* Signup Form Card */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-cyan-100">
-            {error && (
+            {(validationError || authError) && (
               <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
-                {error}
+                {validationError || authError}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Name Field */}
+              {/* Basic Information Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Name Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <User className="w-4 h-4" />
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Enter your name"
+                  />
+                </div>
+
+                {/* Email Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Mail className="w-4 h-4" />
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="your@email.com"
+                  />
+                </div>
+
+                {/* Phone Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Phone className="w-4 h-4" />
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="+91 9876543210"
+                  />
+                </div>
+
+                {/* Profession Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Briefcase className="w-4 h-4" />
+                    Profession
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.profession}
+                    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Your profession"
+                  />
+                </div>
+
+                {/* Home Town Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Home className="w-4 h-4" />
+                    Home Town
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.homeTown}
+                    onChange={(e) => setFormData({ ...formData, homeTown: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Your home town"
+                  />
+                </div>
+
+                {/* Connected To Temple Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Building className="w-4 h-4" />
+                    Connected To Temple
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.connectedToTemple}
+                    onChange={(e) => setFormData({ ...formData, connectedToTemple: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Which temple are you connected to?"
+                  />
+                </div>
+
+                {/* Gender Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Users className="w-4 h-4" />
+                    Gender
+                  </label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Date of Birth Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Cake className="w-4 h-4" />
+                    Date of Birth
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                  />
+                </div>
+
+                {/* How Did You Hear About Us Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Megaphone className="w-4 h-4" />
+                    How Did You Hear About Us?
+                  </label>
+                  <select
+                    value={formData.howDidYouHearAboutUs}
+                    onChange={(e) => setFormData({ ...formData, howDidYouHearAboutUs: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                  >
+                    <option value="">Select an option</option>
+                    <option value="Friend">Friend</option>
+                    <option value="Family">Family</option>
+                    <option value="Social Media">Social Media</option>
+                    <option value="Temple Visit">Temple Visit</option>
+                    <option value="Event">Event</option>
+                    <option value="Website">Website</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                {/* Number of Rounds Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Sparkles className="w-4 h-4" />
+                    Number of Rounds (Daily Chanting)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.numberOfRounds}
+                    onChange={(e) => setFormData({ ...formData, numberOfRounds: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* Address Field - Full Width */}
               <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  👤 Full Name
+                <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                  <MapPin className="w-4 h-4" />
+                  Address
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                <textarea
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                  placeholder="Enter your name"
+                  placeholder="Your address"
+                  rows={2}
                 />
               </div>
 
-              {/* Email Field */}
-              <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  📧 Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                  placeholder="your@email.com"
-                />
-              </div>
+              {/* Password Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Password Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Lock className="w-4 h-4" />
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Create a password (min 6 characters)"
+                  />
+                </div>
 
-              {/* Phone Field */}
-              <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  📱 Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                  placeholder="+91 9876543210"
-                />
-              </div>
-
-              {/* Password Field */}
-              <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  🔒 Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                  placeholder="Create a password (min 6 characters)"
-                />
-              </div>
-
-              {/* Confirm Password Field */}
-              <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  🔒 Confirm Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                  placeholder="Confirm your password"
-                />
+                {/* Confirm Password Field */}
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                    <Lock className="w-4 h-4" />
+                    Confirm Password *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    placeholder="Confirm your password"
+                  />
+                </div>
               </div>
 
               {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-6 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-6 rounded-lg cursor-pointer bg-cyan-600 hover:bg-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center justify-center">
@@ -176,7 +326,10 @@ export default function SignupPage() {
                     Creating Account...
                   </span>
                 ) : (
-                  '🙏 Create Account'
+                  <span className="flex items-center justify-center gap-2">
+                    <HandHeart className="w-5 h-5" />
+                    Create Account
+                  </span>
                 )}
               </button>
             </form>
@@ -197,9 +350,9 @@ export default function SignupPage() {
                 Already have an account?{' '}
                 <Link
                   href="/login"
-                  className="font-semibold text-cyan-600 hover:text-cyan-700"
+                  className="font-semibold text-cyan-600 hover:text-cyan-700 inline-flex items-center gap-1"
                 >
-                  Sign In 🌺
+                  Sign In 🌸
                 </Link>
               </p>
             </div>
@@ -207,7 +360,8 @@ export default function SignupPage() {
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-white">🪷 "Yoga is the journey of the self, through the self, to the self" - Bhagavad Gita</p>
+            <p className="text-slate-700 font-bold">🌸 "सर्वधर्मान्परित्यज्य मामेकं शरणं व्रज ।
+अहं त्वां सर्वपापेभ्यो मोक्षयिष्यामि मा श‍ुच:" - Bg-18.66</p>
           </div>
         </div>
       </div>

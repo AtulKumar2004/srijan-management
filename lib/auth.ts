@@ -1,17 +1,17 @@
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
-export function setAuthCookie(userId: string,email: String) {
-    const token = jwt.sign({ userId }, process.env.JWT_SECRET!, {
+export function setAuthCookie(userId: string, email: string, role: string) {
+    const token = jwt.sign({ userId, role }, process.env.JWT_SECRET!, {
         expiresIn: "7d",
     });
 
     const response = NextResponse.json(
-        { message: "Authentication successful", email: email },
+        { message: "Authentication successful", email: email, role: role },
         { status: 200 }
     );
 
-    response.cookies.set("jwt", token, {
+    response.cookies.set("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",

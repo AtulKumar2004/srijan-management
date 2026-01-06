@@ -1,51 +1,48 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuthStore } from '@/store/authStore';
+import { Loader, Mail, Lock, HandHeart, ClipboardList, Target } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, loading, error: authError, clearError } = useAuthStore();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    // Check for verification success message
+    if (searchParams.get('verified') === 'true') {
+      setSuccessMessage('Email/Phone verified successfully! Please login to continue.');
+    }
+    // Clear any previous errors
+    clearError();
+  }, [searchParams, clearError]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setSuccessMessage('');
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
-
-      // Redirect to dashboard
-      router.push('/dashboard');
+      const { redirect } = await login(formData);
+      // Use the redirect URL from the API response
+      router.push(redirect);
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      // Error is already set in the store and displayed to the user
     }
   }
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{
-      backgroundImage: 'url(/backkk.png)',
+      backgroundImage: 'url(/backgrou.png)',
       backgroundRepeat: 'repeat',
-      backgroundSize: '45%'
+      backgroundSize: '25%'
     }}>
       {/* Login Card */}
       <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
@@ -55,22 +52,29 @@ export default function LoginPage() {
             <h1 className="text-4xl font-bold text-cyan-900 mb-2">
               Hare Krishna
             </h1>
-            <p className="text-white">Sign in to continue your spiritual journey</p>
+            <p className="text-black font-bold">Sign in to continue your spiritual journey</p>
           </div>
 
           {/* Login Form Card */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-cyan-100">
-            {error && (
+            {successMessage && (
+              <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg text-sm">
+                {successMessage}
+              </div>
+            )}
+            
+            {authError && (
               <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
-                {error}
+                {authError}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email Field */}
               <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  📧 Email Address
+                <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
+                  <Mail className="w-4 h-4" />
+                  Email Address
                 </label>
                 <input
                   type="email"
@@ -84,9 +88,18 @@ export default function LoginPage() {
 
               {/* Password Field */}
               <div>
-                <label className="block text-sm font-semibold text-cyan-700 mb-2">
-                  🔒 Password
-                </label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700">
+                    <Lock className="w-4 h-4" />
+                    Password
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-cyan-600 hover:text-cyan-700 font-semibold"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
                 <input
                   type="password"
                   required
@@ -101,7 +114,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-6 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 cursor-pointer px-6 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <span className="flex items-center justify-center">
@@ -112,7 +125,10 @@ export default function LoginPage() {
                     Signing In...
                   </span>
                 ) : (
-                  '🙏 Sign In'
+                  <span className="flex items-center justify-center gap-2">
+                    <HandHeart className="w-5 h-5" />
+                    Sign In
+                  </span>
                 )}
               </button>
             </form>
@@ -139,11 +155,35 @@ export default function LoginPage() {
                 </Link>
               </p>
             </div>
+
+            {/* Quick Actions */}
+            <div className="mt-6 pt-6 border-t border-cyan-200">
+              <p className="text-center text-sm text-gray-600 mb-3 font-semibold">Quick Actions</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Link
+                  href="/attendance"
+                  className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-lg border border-cyan-200 transition-all shadow-sm hover:shadow-md"
+                >
+                  <ClipboardList className="w-8 h-8 text-cyan-600 mb-2" />
+                  <span className="text-sm font-semibold text-cyan-700">Attendance</span>
+                  <span className="text-xs text-gray-500 text-center mt-1">Mark attendance</span>
+                </Link>
+                
+                <Link
+                  href="/outreach-form"
+                  className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 rounded-lg border border-orange-200 transition-all shadow-sm hover:shadow-md"
+                >
+                  <Target className="w-8 h-8 text-orange-600 mb-2" />
+                  <span className="text-sm font-semibold text-orange-700">Outreach</span>
+                  <span className="text-xs text-gray-500 text-center mt-1">Register contacts</span>
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-sm text-white">🕉️ "The soul is neither born, and nor does it die" - Bhagavad Gita</p>
+            <p className="text-sm text-black font-bold">🕉️ "The soul is neither born, and nor does it die" - Bhagavad Gita</p>
           </div>
         </div>
       </div>

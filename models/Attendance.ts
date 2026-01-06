@@ -4,7 +4,9 @@ export interface IAttendance extends Document {
   participantId: mongoose.Types.ObjectId;
   date: Date;
   programId: mongoose.Types.ObjectId;
-  markedBy: mongoose.Types.ObjectId;
+  level?: number;
+  status?: string;
+  markedAt?: Date;
 }
 
 const AttendanceSchema = new Schema<IAttendance>({
@@ -22,12 +24,26 @@ const AttendanceSchema = new Schema<IAttendance>({
 
   date: { type: Date, default: Date.now },
 
-  markedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+  level: {
+    type: Number,
+    required: false,
+  },
+
+  status: {
+    type: String,
+    enum: ['present', 'absent'],
+    default: 'present',
+  },
+
+  markedAt: {
+    type: Date,
+    default: Date.now,
   },
 });
 
-export default mongoose.models.Attendance ||
-  mongoose.model<IAttendance>("Attendance", AttendanceSchema);
+// Delete the model if it exists to ensure schema updates are applied
+if (mongoose.models.Attendance) {
+  delete mongoose.models.Attendance;
+}
+
+export default mongoose.model<IAttendance>("Attendance", AttendanceSchema);

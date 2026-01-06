@@ -2,192 +2,152 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import FollowUp from "@/models/FollowUp";
 import User from "@/models/User";
-import Outreach from "@/models/Outreach";
+import Session from "@/models/Session";
 import jwt from "jsonwebtoken";
-import { TokenPayload } from "@/types/TokenPayload";
 
-// POST /api/followups/create-for-date - Admin creates follow-up for a date, system handles everything automatically
+// POST /api/followups/create-for-date - Create follow-up list for a specific date
 export async function POST(req: NextRequest) {
   try {
-    // Verify authentication
-    const token = req.cookies.get("jwt")?.value;
+    const token = req.cookies.get("token")?.value;
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     
-    // Only admins can create follow-ups
-    if (decoded.role !== "admin") {
-      return NextResponse.json({ error: "Only admins can create follow-ups" }, { status: 403 });
+    // Allow admins and volunteers to create follow-up lists
+    if (!["admin", "volunteer"].includes(decoded.role)) {
+      return NextResponse.json({ error: "Only admins and volunteers can create follow-up lists" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { programDate, programId } = body;
+    const { programId, followUpDate, userType, volunteerIds, sessionTopic, speakerName } = body;
 
-    if (!programDate) {
+    if (!programId || !followUpDate || !userType) {
       return NextResponse.json(
-        { error: "Program date is required" },
+        { error: "Program ID, follow-up date, and user type are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!sessionTopic || !speakerName) {
+      return NextResponse.json(
+        { error: "Session topic and speaker name are required" },
+        { status: 400 }
+      );
+    }
+
+    if (!["participant", "guest"].includes(userType)) {
+      return NextResponse.json(
+        { error: "User type must be 'participant' or 'guest'" },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // Get all active volunteers
-    const volunteers = await User.find({
-      role: { $in: ["volunteer", "admin"] },
-      isActive: true
-    }).select("_id name email");
-
-    if (volunteers.length === 0) {
-      return NextResponse.json(
-        { error: "No active volunteers available. Please add volunteers first." },
-        { status: 400 }
-      );
-    }
-
-    // Get ALL participants (active users)
-    const participants = await User.find({ 
-      role: { $in: ["participant", "guest"] },
-      isActive: true 
+    // Get all users of specified type enrolled in this program (active and inactive)
+    const users = await User.find({
+      role: userType,
+      programs: programId
     }).select("_id name email phone");
 
-    // Get ALL outreach contacts
-    const outreachContacts = await Outreach.find().select("_id name phone");
-
-    const allContacts = [
-      ...participants.map(p => ({ id: p._id, type: "user", name: p.name })),
-      ...outreachContacts.map(o => ({ id: o._id, type: "outreach", name: o.name }))
-    ];
-
-    if (allContacts.length === 0) {
+    if (users.length === 0) {
       return NextResponse.json(
-        { error: "No contacts found. Please add participants or outreach contacts first." },
+        { error: `No active ${userType}s found` },
+        { status: 404 }
+      );
+    }
+
+    // Normalize date to start of day
+    const dateObj = new Date(followUpDate);
+    const normalizedDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 23, 59, 59, 999);
+
+    // Check if follow-ups already exist for this date
+    const existingCount = await FollowUp.countDocuments({
+      program: programId,
+      followUpDate: { $gte: normalizedDate, $lte: endOfDay },
+      userType: userType,
+      isDeleted: false
+    });
+
+    if (existingCount > 0) {
+      return NextResponse.json(
+        { error: `Follow-up list already exists for ${userType}s on this date` },
         { status: 400 }
       );
     }
 
-    // Check for previous week's follow-ups to maintain consistency
-    const oneWeekAgo = new Date(programDate);
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    // Verify volunteers if provided (must be in this program)
+    let volunteers = [];
+    if (volunteerIds && volunteerIds.length > 0) {
+      volunteers = await User.find({
+        _id: { $in: volunteerIds },
+        role: { $in: ["volunteer", "admin"] },
+        isActive: true,
+        programs: programId
+      }).select("_id name");
 
-    const previousFollowUps = await FollowUp.find({
-      programDate: { $gte: oneWeekAgo },
-      isDeleted: false
-    }).select("targetUser targetOutreach assignedTo");
+      // Just use the volunteers we found, don't fail if some are missing
+      if (volunteers.length === 0) {
+        return NextResponse.json(
+          { error: "No valid volunteers found. Please select active volunteers." },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Build assignment map: contactId -> volunteerId (for consistency)
-    const existingAssignments: Map<string, string> = new Map();
-    previousFollowUps.forEach(fu => {
-      const contactId = (fu.targetUser || fu.targetOutreach).toString();
-      existingAssignments.set(contactId, fu.assignedTo.toString());
-    });
-
-    // Prepare assignments
+    // Create follow-ups
     const followUps = [];
-    const errors = [];
     let volunteerIndex = 0;
 
-    for (const contact of allContacts) {
-      try {
-        // Check if follow-up already exists for this date
-        const existingFollowUp = await FollowUp.findOne({
-          ...(contact.type === "user" 
-            ? { targetUser: contact.id } 
-            : { targetOutreach: contact.id }),
-          programDate: new Date(programDate),
-          isDeleted: false
-        });
-
-        if (existingFollowUp) {
-          continue; // Skip if already exists
-        }
-
-        const followUpData: any = {
-          targetType: contact.type,
-          createdBy: decoded.userId,
-          programDate: new Date(programDate),
-          status: "pending",
-          channel: "phone"
-        };
-
-        if (programId) {
-          followUpData.program = programId;
-        }
-
-        // Assign volunteer: Use previous assignment if exists, otherwise round-robin
-        const contactKey = contact.id.toString();
-        if (existingAssignments.has(contactKey)) {
-          // Keep same volunteer from last week
-          followUpData.assignedTo = existingAssignments.get(contactKey);
-        } else {
-          // New contact: Assign to next volunteer in round-robin
-          followUpData.assignedTo = volunteers[volunteerIndex % volunteers.length]._id;
-          volunteerIndex++;
-        }
-
-        // Set target reference
-        if (contact.type === "user") {
-          followUpData.targetUser = contact.id;
-        } else {
-          followUpData.targetOutreach = contact.id;
-        }
-
-        // Create the follow-up
-        const followUp = await FollowUp.create(followUpData);
-        followUps.push(followUp);
-
-      } catch (error: any) {
-        errors.push({ 
-          contactId: contact.id,
-          contactName: contact.name,
-          error: error.message || "Failed to create follow-up" 
-        });
-      }
-    }
-
-    // Calculate distribution stats
-    const distribution: any = {};
-    for (const volunteer of volunteers) {
-      const count = followUps.filter(
-        (fu: any) => fu.assignedTo.toString() === volunteer._id.toString()
-      ).length;
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
       
-      if (count > 0) {
-        distribution[volunteer.name] = count;
+      // Assign volunteer in round-robin fashion if volunteers are provided
+      let assignedVolunteer = null;
+      if (volunteers.length > 0) {
+        assignedVolunteer = volunteers[volunteerIndex]._id;
+        volunteerIndex = (volunteerIndex + 1) % volunteers.length;
       }
+
+      const followUp = {
+        program: programId,
+        followUpDate: normalizedDate,
+        userType: userType,
+        user: user._id,
+        assignedVolunteer: assignedVolunteer,
+        status: "Not Called",
+        remarks: "",
+        createdBy: decoded.userId
+      };
+
+      followUps.push(followUp);
     }
 
-    // Count existing vs new assignments
-    const existingCount = followUps.filter((fu: any) => 
-      existingAssignments.has((fu.targetUser || fu.targetOutreach).toString())
-    ).length;
-    const newCount = followUps.length - existingCount;
+    // Bulk insert
+    const created = await FollowUp.insertMany(followUps);
+
+    // Create session record
+    await Session.create({
+      programId: programId,
+      sessionDate: normalizedDate,
+      sessionTopic: sessionTopic,
+      speakerName: speakerName,
+      createdBy: decoded.userId,
+    });
 
     return NextResponse.json({
-      success: true,
-      message: `✅ Follow-ups created for ${new Date(programDate).toLocaleDateString()}`,
-      data: {
-        totalContacts: allContacts.length,
-        followUpsCreated: followUps.length,
-        volunteers: volunteers.length,
-        distribution: distribution,
-        consistency: {
-          existingPeople: existingCount,
-          newPeople: newCount,
-          message: existingCount > 0 
-            ? `${existingCount} people assigned to same volunteer as last week`
-            : "First time assignment - all new"
-        },
-        errors: errors.length > 0 ? errors : undefined
-      }
+      message: `Successfully created ${created.length} follow-ups and session for ${userType}s`,
+      count: created.length,
+      assignedVolunteers: volunteers.map(v => ({ _id: v._id, name: v.name }))
     }, { status: 201 });
 
   } catch (error: any) {
-    console.error("Error creating follow-ups:", error);
+    console.error("CREATE_FOLLOWUP_LIST_ERROR:", error);
     return NextResponse.json(
-      { error: "Failed to create follow-ups", details: error.message },
+      { error: error.message || "Server error" },
       { status: 500 }
     );
   }

@@ -26,6 +26,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if(!user.isActive) {
+        return NextResponse.json(
+        { error: "User has not verified his account" },
+        { status: 401 }
+      );
+    } 
+
     // VERIFY PASSWORD
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -36,9 +43,26 @@ export async function POST(req: Request) {
     }
 
     // SUCCESS → Set cookie using your function
-    const response = setAuthCookie(user._id.toString(),email);
+    const response = setAuthCookie(user._id.toString(), email, user.role);
+    
+    // Add redirect info based on role
+    const redirectUrl = user.role === 'guest' ? '/profile' : '/dashboard';
+    
+    const responseData = {
+      message: "Login successful",
+      redirect: redirectUrl,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    };
 
-    return response;
+    return NextResponse.json(responseData, {
+      status: 200,
+      headers: response.headers
+    });
 
   } catch (error: any) {
     console.error("LOGIN ERROR:", error);

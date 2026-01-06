@@ -5,6 +5,10 @@ export interface IProgram extends Document {
   description?: string;
   minAge?: number;
   maxAge?: number;
+  photo?: string;
+  qrCode?: string;
+  createdBy?: mongoose.Types.ObjectId;
+  temple?: string;
 }
 
 const ProgramSchema = new Schema<IProgram>({
@@ -12,7 +16,19 @@ const ProgramSchema = new Schema<IProgram>({
   description: String,
   minAge: Number,
   maxAge: Number,
+  photo: String,
+  qrCode: String,
+  createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+  temple: String,
+}, {
+  timestamps: true
 });
 
-export default mongoose.models.Program ||
-  mongoose.model<IProgram>("Program", ProgramSchema);
+// Force recreation of the model to ensure new fields are recognized
+try {
+  mongoose.deleteModel("Program");
+} catch (error) {
+  // Model doesn't exist yet, that's fine
+}
+
+export default mongoose.model<IProgram>("Program", ProgramSchema);

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Otp from "@/models/Otp";
 import User from "@/models/User";
+import { setAuthCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -73,15 +74,20 @@ export async function POST(req: Request) {
     const userObj = user.toObject();
     delete userObj.password;
 
-    // You could also set JWT cookie here if you want auto-login.
-    // For now we just return success and user; frontend can call login.
-    return NextResponse.json(
-      {
-        message: "OTP verified successfully. Account activated.",
-        user: userObj,
-      },
-      { status: 200 }
-    );
+    // Auto-login: Set JWT cookie based on role
+    const response = setAuthCookie(user._id.toString(), user.email, user.role);
+    
+    // Add user data and redirect info to response
+    const responseData = {
+      message: "OTP verified successfully. Account activated.",
+      user: userObj,
+      redirect: user.role === 'guest' ? '/profile' : '/dashboard'
+    };
+
+    return NextResponse.json(responseData, { 
+      status: 200,
+      headers: response.headers
+    });
   } catch (err: any) {
     console.error("VERIFY_OTP_ERROR:", err);
     return NextResponse.json(

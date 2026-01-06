@@ -1,30 +1,43 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IOutreachContact extends Document {
-  name?: string;
+  name: string;
   phone: string;
-  location?: string;
-  interestLevel?: string;
-  notes?: string;
-  addedBy: mongoose.Types.ObjectId; // Volunteer
+  profession: string;
+  motherTongue?: string;
+  currentLocation?: string;
+  registeredBy: string;
+  numberOfRounds?: number;
+  branch: string;
+  paidStatus: string;
+  comment?: string;
+  underWhichAdmin?: string; // Name of the admin
+  assignedVolunteer?: mongoose.Types.ObjectId; // Volunteer assigned for followups
+  addedBy?: mongoose.Types.ObjectId; // Volunteer who added this contact
   createdAt: Date;
+  updatedAt: Date;
 }
 
 const OutreachContactSchema = new Schema<IOutreachContact>({
-  name: String,
+  name: { type: String, required: true },
   phone: { type: String, required: true },
-
-  location: String,
-  interestLevel: {
-    type: String,
-    enum: ["low", "medium", "high"],
-    default: "low",
+  profession: { type: String, required: true },
+  motherTongue: String,
+  currentLocation: String,
+  registeredBy: { type: String, required: true },
+  numberOfRounds: { type: Number, default: 0 },
+  branch: { type: String, required: true },
+  paidStatus: { 
+    type: String, 
+    required: true,
+    enum: ["Paid", "Unpaid", "Partially Paid", "Sponsored"]
   },
-  notes: String,
-
-  addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-
+  comment: String,
+  underWhichAdmin: String,
+  assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
 });
 
 export default mongoose.models.OutreachContact ||
