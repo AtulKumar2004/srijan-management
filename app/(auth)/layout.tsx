@@ -23,12 +23,14 @@ export default function AuthLayout({
             // User is already logged in, redirect immediately
             const redirectUrl = data.user.role === 'guest' ? '/profile' : '/dashboard';
             router.replace(redirectUrl);
+            // Don't set isChecking to false - keep showing loading during redirect
             return;
           }
         }
+        // Only set to false if user is NOT logged in
+        setIsChecking(false);
       } catch (error) {
         // Not logged in, continue
-      } finally {
         setIsChecking(false);
       }
     };
