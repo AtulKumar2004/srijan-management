@@ -15,38 +15,15 @@ function LoginForm() {
     password: ''
   });
   const [successMessage, setSuccessMessage] = useState('');
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.user) {
-            // User is already logged in, redirect based on role
-            const redirectUrl = data.user.role === 'guest' ? '/profile' : '/dashboard';
-            router.push(redirectUrl);
-            return; // Don't set isCheckingAuth to false, keep showing loading
-          }
-        }
-      } catch (error) {
-        // User not logged in, stay on login page
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
-    
-    checkAuth();
-    
     // Check for verification success message
     if (searchParams.get('verified') === 'true') {
       setSuccessMessage('Email/Phone verified successfully! Please login to continue.');
     }
     // Clear any previous errors
     clearError();
-  }, [searchParams, clearError, router]);
+  }, [searchParams, clearError]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,25 +38,7 @@ function LoginForm() {
     }
   }
 
-  // Show loading screen while checking authentication
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-blue-50">
-        <div className="text-center">
-          <img 
-            src="/mrdanga.png" 
-            alt="Loading" 
-            className="w-20 h-20 mx-auto mb-4 animate-spin"
-            style={{ animationDuration: '2s' }}
-          />
-          <p className="text-cyan-700 font-semibold">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render anything initially to prevent flash
-  return isCheckingAuth ? null : (
+  return (
     <div className="min-h-screen relative overflow-hidden" style={{
       backgroundImage: 'url(/backgrou.png)',
       backgroundRepeat: 'repeat',
@@ -241,9 +200,8 @@ export default function LoginPage() {
             src="/mrdanga.png" 
             alt="Loading" 
             className="w-20 h-20 mx-auto mb-4 animate-spin" 
-            style={{ animationDuration: '2s' }}
+            style={{ animationDuration: '1s' }}
           />
-          <p className="text-cyan-700 font-semibold">Loading...</p>
         </div>
       </div>
     }>
