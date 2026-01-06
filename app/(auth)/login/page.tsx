@@ -66,14 +66,20 @@ function LoginForm() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-blue-50">
         <div className="text-center">
-          <Loader className="w-12 h-12 text-cyan-600 animate-spin mx-auto mb-4" />
+          <img 
+            src="/mrdanga.png" 
+            alt="Loading" 
+            className="w-20 h-20 mx-auto mb-4 animate-spin"
+            style={{ animationDuration: '2s' }}
+          />
           <p className="text-cyan-700 font-semibold">Loading...</p>
         </div>
       </div>
     );
   }
 
-  return (
+  // Don't render anything initially to prevent flash
+  return isCheckingAuth ? null : (
     <div className="min-h-screen relative overflow-hidden" style={{
       backgroundImage: 'url(/backgrou.png)',
       backgroundRepeat: 'repeat',
@@ -229,8 +235,16 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-blue-50">
+        <div className="text-center">
+          <img 
+            src="/mrdanga.png" 
+            alt="Loading" 
+            className="w-20 h-20 mx-auto mb-4 animate-spin" 
+            style={{ animationDuration: '2s' }}
+          />
+          <p className="text-cyan-700 font-semibold">Loading...</p>
+        </div>
       </div>
     }>
       <LoginForm />
