@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -24,7 +24,7 @@ interface Guest {
   createdAt: Date;
 }
 
-export default function GuestDetailsPage() {
+function GuestDetailsContent() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -537,5 +537,17 @@ export default function GuestDetailsPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function GuestDetailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin" />
+      </div>
+    }>
+      <GuestDetailsContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -29,7 +29,7 @@ interface UserData {
     updatedAt: string;
 }
 
-export default function VolunteerDetailPage() {
+function VolunteerDetailContent() {
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
@@ -634,5 +634,17 @@ export default function VolunteerDetailPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function VolunteerDetailPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin" />
+            </div>
+        }>
+            <VolunteerDetailContent />
+        </Suspense>
     );
 }

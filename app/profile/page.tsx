@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -36,7 +36,7 @@ interface AttendanceData {
     recentSessions: { date: string; program: string; status: string }[];
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const viewUserId = searchParams.get('userId'); // Get userId from query params
@@ -571,5 +571,17 @@ export default function ProfilePage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function ProfilePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin" />
+            </div>
+        }>
+            <ProfileContent />
+        </Suspense>
     );
 }
