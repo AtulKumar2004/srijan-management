@@ -45,9 +45,8 @@ export default function AuthLayout({
             src="/mrdanga.png" 
             alt="Loading" 
             className="w-20 h-20 mx-auto mb-4 animate-spin"
-            style={{ animationDuration: '2s' }}
+            style={{ animationDuration: '1s' }}
           />
-          <p className="text-cyan-700 font-semibold">Loading...</p>
         </div>
       </div>
     );
