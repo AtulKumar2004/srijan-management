@@ -184,7 +184,7 @@ export default function OutreachFormPage() {
                 Outreach Registration of Participants for
               </h1>
               <p className="text-sm text-gray-600">
-                Festival of enlightenment happening at selected temple.
+                Festival of enlightenment happening at ISKCON Patia.
               </p>
             </div>
           </div>
