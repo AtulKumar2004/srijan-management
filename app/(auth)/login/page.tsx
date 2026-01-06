@@ -17,13 +17,32 @@ function LoginForm() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            // User is already logged in, redirect based on role
+            const redirectUrl = data.user.role === 'guest' ? '/profile' : '/dashboard';
+            router.push(redirectUrl);
+          }
+        }
+      } catch (error) {
+        // User not logged in, stay on login page
+      }
+    };
+    
+    checkAuth();
+    
     // Check for verification success message
     if (searchParams.get('verified') === 'true') {
       setSuccessMessage('Email/Phone verified successfully! Please login to continue.');
     }
     // Clear any previous errors
     clearError();
-  }, [searchParams, clearError]);
+  }, [searchParams, clearError, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

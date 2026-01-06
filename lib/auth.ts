@@ -14,7 +14,7 @@ export function setAuthCookie(userId: string, email: string, role: string) {
     response.cookies.set("token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        sameSite: "lax", // Changed from "strict" to "lax" for better mobile compatibility
         maxAge: 7 * 24 * 60 * 60, // 7 days
         path: "/",
     });
