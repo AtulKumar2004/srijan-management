@@ -15,6 +15,7 @@ function LoginForm() {
     password: ''
   });
   const [successMessage, setSuccessMessage] = useState('');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -27,10 +28,13 @@ function LoginForm() {
             // User is already logged in, redirect based on role
             const redirectUrl = data.user.role === 'guest' ? '/profile' : '/dashboard';
             router.push(redirectUrl);
+            return; // Don't set isCheckingAuth to false, keep showing loading
           }
         }
       } catch (error) {
         // User not logged in, stay on login page
+      } finally {
+        setIsCheckingAuth(false);
       }
     };
     
@@ -55,6 +59,18 @@ function LoginForm() {
     } catch (err: any) {
       // Error is already set in the store and displayed to the user
     }
+  }
+
+  // Show loading screen while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-cyan-50 to-blue-50">
+        <div className="text-center">
+          <Loader className="w-12 h-12 text-cyan-600 animate-spin mx-auto mb-4" />
+          <p className="text-cyan-700 font-semibold">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
