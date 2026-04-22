@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Session from "@/models/Session";
 import FollowUp from "@/models/FollowUp";
+import Attendance from "@/models/Attendance";
+import User from "@/models/User";
 import mongoose from "mongoose";
 
 // GET /api/programs/[id]/sessions - Get all sessions for a program
@@ -75,9 +77,47 @@ export async function GET(
     // Sort by date (most recent first)
     sessions.sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime());
 
+    // Compute attendance summary per session date for list view.
+    const totalStudents = await User.countDocuments({
+      programs: id,
+      role: { $in: ["volunteer", "participant"] }
+    });
+
+    const presentByDate = await Attendance.aggregate([
+      {
+        $match: {
+          programId: new mongoose.Types.ObjectId(id),
+          status: "present"
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$date" }
+          },
+          presentCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const presentCountMap = new Map(
+      presentByDate.map((item) => [item._id, item.presentCount])
+    );
+
+    const sessionsWithAttendance = sessions.map((session: any) => {
+      const dateKey = new Date(session.sessionDate).toISOString().split("T")[0];
+      const presentCount = presentCountMap.get(dateKey) || 0;
+
+      return {
+        ...session,
+        presentCount,
+        absentCount: Math.max(totalStudents - presentCount, 0)
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      sessions
+      sessions: sessionsWithAttendance
     });
   } catch (error: any) {
     console.error("GET_SESSIONS_ERROR:", error);

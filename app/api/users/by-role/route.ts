@@ -25,13 +25,25 @@ export async function GET(req: NextRequest) {
       query.programs = programId;
     }
 
-    const users = await User.find(query).select("-password").sort({ createdAt: -1 });
+    // Fetch users with active filter for admins
+    const users = await User.find(query)
+      .select("-password")
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return NextResponse.json({ users }, { status: 200 });
+    return NextResponse.json({ 
+      users: users || [],
+      count: users?.length || 0 
+    }, { status: 200 });
   } catch (error: any) {
     console.error("Error fetching users by role:", error);
+    console.error("Error stack:", error.stack);
     return NextResponse.json(
-      { message: "Internal server error", error: error.message },
+      { 
+        message: "Internal server error", 
+        error: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

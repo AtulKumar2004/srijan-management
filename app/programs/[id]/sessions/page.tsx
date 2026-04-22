@@ -12,6 +12,8 @@ interface Session {
   sessionTopic: string;
   speakerName: string;
   createdAt: Date;
+  presentCount?: number;
+  absentCount?: number;
 }
 
 interface Program {
@@ -135,6 +137,15 @@ export default function SessionsPage() {
                       <User className="w-4 h-4" />
                       <span className="font-medium">Speaker:</span>
                       <span>{session.speakerName}</span>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-2 text-xs sm:text-sm">
+                      <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">
+                        Present: {session.presentCount ?? 0}
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">
+                        Absent: {session.absentCount ?? 0}
+                      </span>
                     </div>
                   </div>
 

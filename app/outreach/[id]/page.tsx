@@ -62,9 +62,14 @@ function OutreachDetailsContent() {
       if (response.ok) {
         const data = await response.json();
         setAdmins(data.users || []);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch admins:', response.status, errorData);
+        setAdmins([]);
       }
     } catch (error) {
       console.error('Error fetching admins:', error);
+      setAdmins([]);
     }
   };
 

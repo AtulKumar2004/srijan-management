@@ -66,10 +66,15 @@ export default function OutreachFormPage() {
         console.log('Admins fetched:', data.users);
         setAdmins(data.users || []);
       } else {
-        console.error('Failed to fetch admins:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to fetch admins:', response.status, errorData);
+        // Don't block the form - just log the error and continue with empty admins
+        setAdmins([]);
       }
     } catch (error) {
       console.error('Error fetching admins:', error);
+      // Don't block the form - just continue with empty admins
+      setAdmins([]);
     }
   };
 
