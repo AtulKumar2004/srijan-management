@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 // protected sections
-const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach"];
+const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach", "/notifications"];
 
 // pages that logged-in users shouldn't access
 const authPages = ["/login", "/signup"];
@@ -86,6 +86,11 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
+    // Restrict notifications to only admins and volunteers
+    if (pathname.startsWith("/notifications") && !["admin", "volunteer"].includes(decoded.role)) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     // Restrict admin pages to only admins
     if (pathname.startsWith("/admin") && decoded.role !== "admin") {
       return NextResponse.redirect(new URL("/", req.url));
@@ -107,6 +112,8 @@ export const config = {
     "/guests/:path*",
     "/outreach",
     "/outreach/:path*",
+    "/notifications",
+    "/notifications/:path*",
     "/login",
     "/signup",
   ],

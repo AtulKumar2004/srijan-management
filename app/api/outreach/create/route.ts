@@ -23,10 +23,15 @@ export async function POST(req: NextRequest) {
       comment
     } = body;
 
+    const normalizedPhone = String(phone || "").replace(/\D/g, "");
+    const normalizedPaidStatus = typeof paidStatus === "string" && paidStatus.trim()
+      ? paidStatus.trim()
+      : "Unpaid";
+
     console.log("Extracted underWhichAdmin:", underWhichAdmin);
 
     // Validate required fields
-    if (!name || !phone || !profession || !registeredBy || !branch || !paidStatus || !underWhichAdmin) {
+    if (!name || !phone || !profession || !registeredBy || !branch || !underWhichAdmin) {
       console.log("Validation failed - missing fields");
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -34,17 +39,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (normalizedPhone.length !== 10) {
+      return NextResponse.json(
+        { error: "Phone number must be exactly 10 digits" },
+        { status: 400 }
+      );
+    }
+
     // Create new outreach contact
     const outreachContact = await OutreachContact.create({
       name,
-      phone,
+      phone: normalizedPhone,
       profession,
       motherTongue,
       currentLocation,
       registeredBy,
       numberOfRounds: numberOfRounds || 0,
       branch,
-      paidStatus,
+      paidStatus: normalizedPaidStatus,
       underWhichAdmin,
       comment
     });

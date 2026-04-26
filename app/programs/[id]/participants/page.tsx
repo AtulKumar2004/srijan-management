@@ -250,7 +250,7 @@ export default function ParticipantsPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Participant created successfully! Default password: Participant@123' });
+        setMessage({ type: 'success', text: 'Participant created successfully! Default password: 108jayradheshyam108' });
         setShowAddModal(false);
         setNewParticipant({
           name: "",

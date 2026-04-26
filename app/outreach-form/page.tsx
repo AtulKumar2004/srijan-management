@@ -10,6 +10,8 @@ export default function OutreachFormPage() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [admins, setAdmins] = useState<{ _id: string; name: string }[]>([]);
   const [qrImage, setQrImage] = useState<string>('');
+  const [qrStorageWarning, setQrStorageWarning] = useState('');
+  const [selectedTempleOption, setSelectedTempleOption] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -31,29 +33,86 @@ export default function OutreachFormPage() {
   useEffect(() => {
     fetchAdmins();
     // Load QR code from localStorage
-    const savedQR = localStorage.getItem('outreachQRCode');
-    if (savedQR) {
-      setQrImage(savedQR);
+    try {
+      const savedQR = localStorage.getItem('outreachQRCode');
+      if (savedQR) {
+        setQrImage(savedQR);
+      }
+    } catch (error) {
+      console.error('Failed to load saved QR code:', error);
     }
   }, []);
+
+  const compressImageToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const image = new window.Image();
+        image.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxSide = 900;
+          const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+
+          canvas.width = Math.round(image.width * scale);
+          canvas.height = Math.round(image.height * scale);
+
+          const context = canvas.getContext('2d');
+          if (!context) {
+            reject(new Error('Unable to process image'));
+            return;
+          }
+
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+          // JPEG with quality keeps data size far smaller than raw/base64 PNG uploads.
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(compressed);
+        };
+
+        image.onerror = () => reject(new Error('Invalid image file'));
+        image.src = reader.result as string;
+      };
+
+      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleQRImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const imageData = reader.result as string;
-        setQrImage(imageData);
-        // Save to localStorage for persistence
-        localStorage.setItem('outreachQRCode', imageData);
-      };
-      reader.readAsDataURL(file);
+      setQrStorageWarning('');
+
+      compressImageToDataUrl(file)
+        .then((imageData) => {
+          setQrImage(imageData);
+
+          // Save to localStorage for persistence, but don't break if quota is exceeded.
+          try {
+            localStorage.setItem('outreachQRCode', imageData);
+          } catch (error) {
+            console.error('Failed to persist QR image in localStorage:', error);
+            setQrStorageWarning('QR uploaded for now, but could not be saved permanently. Please use a smaller image.');
+          }
+        })
+        .catch((error) => {
+          console.error('QR upload failed:', error);
+          setQrStorageWarning('Failed to upload QR image. Please try another file.');
+        });
+
+      // Allow re-selecting the same file in a later upload attempt.
+      e.target.value = '';
     }
   };
 
   const handleClearQR = () => {
     setQrImage('');
-    localStorage.removeItem('outreachQRCode');
+    setQrStorageWarning('');
+    try {
+      localStorage.removeItem('outreachQRCode');
+    } catch (error) {
+      console.error('Failed to clear saved QR code:', error);
+    }
   };
 
   const fetchAdmins = async () => {
@@ -114,11 +173,24 @@ export default function OutreachFormPage() {
     'Sponsored'
   ];
 
+  const templeOptions = [
+    'ISKCON Patia',
+    'ISKCON Bhubaneswar',
+    'Other'
+  ];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
     setSuccess('');
+
+    const normalizedPhone = formData.phone.replace(/\D/g, '');
+    if (normalizedPhone.length !== 10) {
+      setError('Phone number must be exactly 10 digits');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const response = await fetch('/api/outreach/create', {
@@ -126,7 +198,7 @@ export default function OutreachFormPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, phone: normalizedPhone }),
       });
 
       const data = await response.json();
@@ -152,6 +224,7 @@ export default function OutreachFormPage() {
           underWhichAdmin: '',
           comment: ''
         });
+        setSelectedTempleOption('');
         setSuccess('');
       }, 2000);
       
@@ -189,7 +262,7 @@ export default function OutreachFormPage() {
                 Outreach Registration of Participants for
               </h1>
               <p className="text-sm text-gray-600">
-                Festival of enlightenment happening at ISKCON Patia.
+                Srijan Youth Festival.
               </p>
             </div>
           </div>
@@ -232,6 +305,12 @@ export default function OutreachFormPage() {
               {error}
             </div>
           )}
+
+          {qrStorageWarning && (
+            <div className="mb-4 p-3 bg-amber-100 border border-amber-300 text-amber-800 rounded-lg text-sm">
+              {qrStorageWarning}
+            </div>
+          )}
           
           {success && (
             <div className="mb-4 p-3 bg-green-100 border border-green-300 text-green-700 rounded-lg text-sm">
@@ -265,8 +344,11 @@ export default function OutreachFormPage() {
                 required
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[0-9]{10}"
                 className="w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"
-                placeholder="Enter phone number"
+                placeholder="Enter 10-digit phone number"
               />
             </div>
 
@@ -354,23 +436,44 @@ export default function OutreachFormPage() {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Temple Name<span className="text-red-600">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 required
-                value={formData.branch}
-                onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                value={selectedTempleOption}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedTempleOption(value);
+                  if (value && value !== 'Other') {
+                    setFormData({ ...formData, branch: value });
+                  } else {
+                    setFormData({ ...formData, branch: '' });
+                  }
+                }}
                 className="w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"
-                placeholder="Enter temple name"
-              />
+              >
+                <option value="">Select Temple Name</option>
+                {templeOptions.map((temple) => (
+                  <option key={temple} value={temple}>{temple}</option>
+                ))}
+              </select>
+
+              {selectedTempleOption === 'Other' && (
+                <input
+                  type="text"
+                  required
+                  value={formData.branch}
+                  onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                  className="mt-3 w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"
+                  placeholder="Enter temple name"
+                />
+              )}
             </div>
 
             {/* Paid Status */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Paid Status<span className="text-red-600">*</span>
+                Paid Status
               </label>
               <select
-                required
                 value={formData.paidStatus}
                 onChange={(e) => setFormData({ ...formData, paidStatus: e.target.value })}
                 className="w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"

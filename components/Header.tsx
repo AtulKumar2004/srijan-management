@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X, User, Bell } from "lucide-react";
 
 export default function Header() {
   const router = useRouter();
@@ -37,11 +37,17 @@ export default function Header() {
 
   return (
     <header className="shadow-md border-b border-gray-400 relative" style={{ backgroundImage: 'url(/HeaderBack.png)', backgroundSize: '22%', backgroundRepeat: 'repeat' }}>
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-2.5">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 sm:space-x-4">
-            <img src="/SrijanLogo4.png" className="rounded-full w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20" alt="Srijan Logo" />
-            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-[#A65353]">Srijan</h1>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="cursor-pointer flex justify-center items-center gap-2"
+              aria-label="Go to dashboard"
+            >
+              <img src="/SrijanLogo4.png" className="rounded-full w-20 h-20 sm:w-12 sm:h-12 lg:w-17 lg:h-17" alt="Srijan Logo" />
+              <h1 className="text-3xl text-amber-700 font-bold">Srijan</h1>
+            </button>
           </div>
           
           <nav className="hidden md:flex items-center space-x-4">
@@ -56,6 +62,15 @@ export default function Header() {
             
             {user && (
               <div className="flex items-center space-x-4">
+                {(user.role === "admin" || user.role === "volunteer") && (
+                  <button
+                    onClick={() => router.push("/notifications")}
+                    className="px-4 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-colors text-sm whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                  >
+                    <Bell size={18} />
+                    Notifications
+                  </button>
+                )}
                 <button
                   onClick={handleProfileClick}
                   className="px-4 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-colors text-sm whitespace-nowrap flex items-center gap-2 cursor-pointer"
@@ -98,6 +113,18 @@ export default function Header() {
             
             {user && (
               <>
+                {(user.role === "admin" || user.role === "volunteer") && (
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      router.push("/notifications");
+                    }}
+                    className="w-full px-4 py-2 cursor-pointer bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-colors font-medium flex items-center justify-center gap-2"
+                  >
+                    <Bell size={18} />
+                    Notifications
+                  </button>
+                )}
                 <button
                   onClick={handleProfileClick}
                   className="w-full px-4 py-2 cursor-pointer bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-colors font-medium flex items-center justify-center gap-2"

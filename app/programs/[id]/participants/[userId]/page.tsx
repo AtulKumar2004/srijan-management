@@ -50,6 +50,7 @@ function ParticipantDetailContent() {
   const [isEditing, setIsEditing] = useState(isEditMode);
   const [formData, setFormData] = useState<Partial<UserData>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [registeredByName, setRegisteredByName] = useState<string>('N/A');
   const [handledByName, setHandledByName] = useState<string>('N/A');
   const [volunteers, setVolunteers] = useState<VolunteerInfo[]>([]);
@@ -64,6 +65,12 @@ function ParticipantDetailContent() {
   useEffect(() => {
     setIsEditing(isEditMode);
   }, [isEditMode]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -154,22 +161,34 @@ function ParticipantDetailContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          programId,
+        }),
       });
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.status === 202) {
+        setMessage({ type: 'success', text: data.message || 'Approval request sent to admin.' });
+        setToast({ type: 'success', text: 'Promotion request sent to program admin for approval.' });
+        await fetchUser();
+        setIsEditing(false);
+        setTimeout(() => setMessage(null), 4000);
+      } else if (res.ok) {
         setMessage({ type: 'success', text: 'User updated successfully!' });
+        setToast({ type: 'success', text: 'User updated successfully.' });
         setUser(data.user);
         setIsEditing(false);
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to update user' });
+        setMessage({ type: 'error', text: data.error || data.message || 'Failed to update user' });
+        setToast({ type: 'error', text: data.error || data.message || 'Failed to update user' });
       }
     } catch (error) {
       console.error("Error updating user:", error);
       setMessage({ type: 'error', text: 'Error updating user' });
+      setToast({ type: 'error', text: 'Error updating user' });
     } finally {
       setSaving(false);
     }
@@ -213,6 +232,12 @@ function ParticipantDetailContent() {
       backgroundAttachment: 'fixed'
     }}>
       <Header />
+
+      {toast && (
+        <div className={`fixed top-24 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.text}
+        </div>
+      )}
       
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}

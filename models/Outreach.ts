@@ -9,7 +9,7 @@ export interface IOutreachContact extends Document {
   registeredBy: string;
   numberOfRounds?: number;
   branch: string;
-  paidStatus: string;
+  paidStatus?: string;
   comment?: string;
   underWhichAdmin?: string; // Name of the admin
   assignedVolunteer?: mongoose.Types.ObjectId; // Volunteer assigned for followups
@@ -27,9 +27,9 @@ const OutreachContactSchema = new Schema<IOutreachContact>({
   registeredBy: { type: String, required: true },
   numberOfRounds: { type: Number, default: 0 },
   branch: { type: String, required: true },
-  paidStatus: { 
-    type: String, 
-    required: true,
+  paidStatus: {
+    type: String,
+    default: "Unpaid",
     enum: ["Paid", "Unpaid", "Partially Paid", "Sponsored"]
   },
   comment: String,

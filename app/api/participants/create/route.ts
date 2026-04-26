@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import OutreachContact from "@/models/Outreach";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -44,16 +45,25 @@ export async function POST(req: NextRequest) {
       programs,
     } = body;
 
-    if (!name || !email || !phone) {
+    const normalizedPhone = String(phone || "").replace(/\D/g, "");
+
+    if (!name || !email || !normalizedPhone) {
       return NextResponse.json(
         { error: "Name, email, and phone are required" },
         { status: 400 }
       );
     }
 
+    if (normalizedPhone.length !== 10) {
+      return NextResponse.json(
+        { error: "Phone number must be exactly 10 digits" },
+        { status: 400 }
+      );
+    }
+
     // Check for existing user by email or phone
     const existing = await User.findOne({ 
-      $or: [{ email }, { phone }] 
+      $or: [{ email }, { phone: { $in: [phone, normalizedPhone] } }] 
     });
     if (existing) {
       return NextResponse.json(
@@ -62,14 +72,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate a temporary random password for participants created through attendance
-    const tempPassword = Math.random().toString(36).slice(-8);
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const defaultPassword = "108jayradheshyam108";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const user = await User.create({
       name,
       email,
-      phone,
+      phone: normalizedPhone,
       password: hashedPassword,
       profession,
       homeTown,
@@ -88,15 +97,36 @@ export async function POST(req: NextRequest) {
       registeredBy: registeredBy || creatorUserId,
       handledBy: handledBy || creatorUserId,
       
-      // Requires OTP verification to activate
-      isActive: false,
+      // Created by admin/volunteer flow, so activate immediately
+      isActive: true,
     });
+
+    // Best-effort outreach cleanup by phone.
+    // Participant creation must succeed even if there is no outreach match.
+    let outreachContactsDeleted = 0;
+    try {
+      const outreachCandidates = await OutreachContact.find({}, "_id phone").lean();
+      const outreachIdsToDelete = outreachCandidates
+        .filter((contact: any) => String(contact.phone || "").replace(/\D/g, "") === normalizedPhone)
+        .map((contact: any) => contact._id);
+
+      if (outreachIdsToDelete.length) {
+        const deletedOutreachResult = await OutreachContact.deleteMany({ _id: { $in: outreachIdsToDelete } });
+        outreachContactsDeleted = deletedOutreachResult.deletedCount || 0;
+      }
+    } catch (cleanupError) {
+      console.error("Outreach cleanup skipped:", cleanupError);
+    }
 
     const obj = user.toObject();
     delete obj.password;
 
     return NextResponse.json(
-      { message: "Participant created successfully", user: obj },
+      {
+        message: "Participant created successfully",
+        user: obj,
+        outreachContactsDeleted,
+      },
       { status: 201 }
     );
   } catch (error: any) {

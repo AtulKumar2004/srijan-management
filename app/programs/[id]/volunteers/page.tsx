@@ -69,6 +69,7 @@ export default function VolunteersPage() {
     maritalStatus: "",
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -77,6 +78,12 @@ export default function VolunteersPage() {
   useEffect(() => {
     applyFilters();
   }, [volunteers, searchTerm, filterGender, filterLevel, filterGrade, filterHomeTown, filterActive, filterNumberOfRounds]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchData = async () => {
     try {
@@ -208,8 +215,27 @@ export default function VolunteersPage() {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.status === 202) {
+        setMessage({ type: 'success', text: data.message || 'Volunteer request sent to program admin for approval.' });
+        setToast({ type: 'success', text: data.message || 'Volunteer request sent to program admin for approval.' });
+        setShowAddModal(false);
+        setNewVolunteer({
+          name: "",
+          email: "",
+          phone: "",
+          profession: "",
+          homeTown: "",
+          address: "",
+          gender: "",
+          connectedToTemple: "",
+          numberOfRounds: 0,
+          level: 0,
+          maritalStatus: "",
+        });
+        setTimeout(() => setMessage(null), 4000);
+      } else if (res.ok) {
         setMessage({ type: 'success', text: 'Volunteer added successfully!' });
+        setToast({ type: 'success', text: 'Volunteer added successfully!' });
         setShowAddModal(false);
         setNewVolunteer({
           name: "",
@@ -228,10 +254,12 @@ export default function VolunteersPage() {
         setTimeout(() => setMessage(null), 3000);
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to add volunteer' });
+        setToast({ type: 'error', text: data.error || 'Failed to add volunteer' });
       }
     } catch (error) {
       console.error("Error adding volunteer:", error);
       setMessage({ type: 'error', text: 'Error adding volunteer' });
+      setToast({ type: 'error', text: 'Error adding volunteer' });
     } finally {
       setSaving(false);
     }
@@ -265,6 +293,12 @@ export default function VolunteersPage() {
       backgroundAttachment: 'fixed'
     }}>
       <Header />
+
+      {toast && (
+        <div className={`fixed top-24 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.text}
+        </div>
+      )}
       
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
