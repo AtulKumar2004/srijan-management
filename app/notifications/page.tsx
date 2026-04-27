@@ -330,9 +330,6 @@ function NotificationsContent() {
 
                       {!isRoleChange && volunteerRequest && (
                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
-                          <p><strong>Candidate Email:</strong> {volunteerRequest.email || "N/A"}</p>
-                          <p><strong>Candidate Phone:</strong> {volunteerRequest.phone || "N/A"}</p>
-                          <p><strong>Candidate Level:</strong> {volunteerRequest.level ?? "N/A"}</p>
                           <p><strong>Raised At:</strong> {new Date(request.createdAt).toLocaleString()}</p>
                           {request.reviewedAt && <p><strong>Reviewed At:</strong> {new Date(request.reviewedAt).toLocaleString()}</p>}
                           {request.rejectionReason && <p><strong>Reason:</strong> {request.rejectionReason}</p>}
