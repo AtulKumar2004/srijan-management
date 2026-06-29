@@ -74,13 +74,28 @@ export async function DELETE(
 
     // Cascade delete all related data
 
-    // 1. Delete all volunteers and participants associated with this program
-    await User.deleteMany({
+    // 1. Safely handle users enrolled in this program:
+    //    - Remove this program from their programs[] array
+    //    - Only delete the user account if they have NO remaining programs after removal
+    const enrolledUsers = await User.find({
       role: { $in: ["volunteer", "participant"] },
       programs: id,
-    });
+    }).select("_id programs");
 
-    // 2. Remove program from all remaining users (e.g., admin/guest)
+    for (const user of enrolledUsers) {
+      const remainingPrograms = user.programs.filter(
+        (p: any) => String(p) !== String(id)
+      );
+      if (remainingPrograms.length === 0) {
+        // No other programs — safe to delete the account
+        await User.findByIdAndDelete(user._id);
+      } else {
+        // Still enrolled in other programs — just remove this program
+        await User.findByIdAndUpdate(user._id, { $pull: { programs: id } });
+      }
+    }
+
+    // 2. Remove program reference from any remaining users (e.g., admins/guests)
     await User.updateMany(
       { programs: id },
       { $pull: { programs: id } }
