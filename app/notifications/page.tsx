@@ -400,7 +400,10 @@ function NotificationsContent() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => toggleExpanded(request._id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpanded(request._id);
+                        }}
                         className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"
                         aria-label={isExpanded ? "Hide details" : "Show details"}
                       >

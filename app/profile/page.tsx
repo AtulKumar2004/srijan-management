@@ -74,6 +74,7 @@ function ProfileContent() {
     };
 
     const checkAuthAndFetchProfile = async () => {
+        let willRedirect = false;
         try {
             // If viewing another user's profile
             if (viewUserId) {
@@ -83,16 +84,19 @@ function ProfileContent() {
                     const data = await res.json();
                     const u = data.user;
                     if (!u.isArchived && u.role === 'volunteer' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        willRedirect = true;
                         router.replace(`/programs/${u.programs[0]}/volunteers/${u._id}?edit=true`);
                         return;
                     }
                     if (!u.isArchived && u.role === 'participant' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        willRedirect = true;
                         router.replace(`/programs/${u.programs[0]}/participants/${u._id}?edit=true`);
                         return;
                     }
                     setUser(u);
                     setFormData(u);
                 } else {
+                    willRedirect = true;
                     router.push("/profile"); // Redirect to own profile if user not found
                 }
             } else {
@@ -100,6 +104,7 @@ function ProfileContent() {
                 setIsViewingOtherUser(false);
                 const res = await fetch("/api/auth/me");
                 if (!res.ok) {
+                    willRedirect = true;
                     router.push("/login");
                     return;
                 }
@@ -108,24 +113,30 @@ function ProfileContent() {
                 if (data.user) {
                     const u = data.user;
                     if (!u.isArchived && u.role === 'volunteer' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        willRedirect = true;
                         router.replace(`/programs/${u.programs[0]}/volunteers/${u._id}?edit=true`);
                         return;
                     }
                     if (!u.isArchived && u.role === 'participant' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        willRedirect = true;
                         router.replace(`/programs/${u.programs[0]}/participants/${u._id}?edit=true`);
                         return;
                     }
                     setUser(u);
                     setFormData(u);
                 } else {
+                    willRedirect = true;
                     router.push("/login");
                 }
             }
         } catch (error) {
             console.error("Error fetching profile:", error);
+            willRedirect = true;
             router.push("/login");
         } finally {
-            setLoading(false);
+            if (!willRedirect) {
+                setLoading(false);
+            }
         }
     };
 

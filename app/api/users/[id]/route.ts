@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 export async function GET(
   req: NextRequest,
@@ -10,6 +11,11 @@ export async function GET(
   try {
     const { id } = await params;
     console.log('API - Received user ID:', id);
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ message: "Invalid user ID format" }, { status: 404 });
+    }
+
     await connectDB();
 
     const user = await User.findById(id).select("-password");

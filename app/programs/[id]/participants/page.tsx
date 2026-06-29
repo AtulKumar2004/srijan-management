@@ -24,6 +24,7 @@ interface Participant {
   grade?: string;
   numberOfRounds?: number;
   registeredBy?: string;
+  registeredByName?: string;
   handledBy?: string;
   isActive?: boolean;
   isArchived?: boolean;
@@ -598,14 +599,16 @@ export default function ParticipantsPage() {
               )}
             </div>
             <div className="flex gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
-              <button
-                onClick={handleDownloadCSV}
-                className="flex-1 sm:flex-none flex items-center justify-center cursor-pointer gap-2 px-3 sm:px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white font-bold rounded-lg transition-colors text-sm sm:text-base shadow"
-              >
-                <Download size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Download Data</span>
-                <span className="sm:hidden">CSV</span>
-              </button>
+              {currentUserRole !== 'participant' && (
+                <button
+                  onClick={handleDownloadCSV}
+                  className="flex-1 sm:flex-none flex items-center justify-center cursor-pointer gap-2 px-3 sm:px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white font-bold rounded-lg transition-colors text-sm sm:text-base shadow"
+                >
+                  <Download size={18} className="sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Download Data</span>
+                  <span className="sm:hidden">CSV</span>
+                </button>
+              )}
               {currentUserRole === 'admin' && (
                 <button
                   type="button"
@@ -1073,7 +1076,7 @@ export default function ParticipantsPage() {
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Registered By:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">
-                        {participant.registeredBy || 'N/A'}
+                        {participant.registeredByName || participant.registeredBy || 'N/A'}
                       </span>
                     </div>
                   </div>

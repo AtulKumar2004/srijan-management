@@ -98,8 +98,14 @@ function VolunteerDetailContent() {
 
             if (meRes.ok) {
                 const meData = await meRes.json();
+                const role = meData.user?.role || '';
                 setCurrentUserId(meData.user?._id || '');
-                setCurrentUserRole(meData.user?.role || '');
+                setCurrentUserRole(role);
+                
+                if (role === 'participant') {
+                    router.replace(`/programs/${programId}`);
+                    return;
+                }
             }
 
             if (res.ok) {
@@ -506,7 +512,7 @@ function VolunteerDetailContent() {
                                     <label className="block text-sm font-bold text-gray-700 mb-2">
                                         Role *
                                     </label>
-                                    {isEditing && canEditAdministrative ? (
+                                    {isEditing && canEditAdministrative && !isSelf ? (
                                         <select
                                             name="role"
                                             value={formData.role || ''}

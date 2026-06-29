@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import mongoose from "mongoose";
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,6 +57,19 @@ export async function GET(req: NextRequest) {
           };
         })
       );
+    }
+    
+    if (Array.isArray(users)) {
+      const userIds = [...new Set(users.map(u => u.registeredBy).filter(id => Boolean(id) && mongoose.Types.ObjectId.isValid(String(id))))];
+      const registeredByUsers = await User.find({ _id: { $in: userIds } }).select("name").lean();
+      const nameMap: any = registeredByUsers.reduce((acc: any, u: any) => {
+        acc[u._id.toString()] = u.name;
+        return acc;
+      }, {});
+      users = users.map((u: any) => ({
+        ...u,
+        registeredByName: u.registeredBy ? nameMap[u.registeredBy] || u.registeredBy : 'N/A'
+      }));
     }
 
     return NextResponse.json({ 

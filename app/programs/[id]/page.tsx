@@ -19,14 +19,17 @@ export default function ProgramDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const programId = params.id as string;
-  
+
   const [program, setProgram] = useState<Program | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ role: string } | null>(null);
 
   useEffect(() => {
-    checkAuth();
-    fetchProgram();
+    const init = async () => {
+      await Promise.all([checkAuth(), fetchProgram()]);
+      setLoading(false);
+    };
+    init();
   }, [programId]);
 
   const checkAuth = async () => {
@@ -54,8 +57,6 @@ export default function ProgramDetailsPage() {
       }
     } catch (error) {
       console.error("Error fetching program:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -109,7 +110,7 @@ export default function ProgramDetailsPage() {
       bgColor: "#F5F3FF",
       route: `/programs/${programId}/sessions`,
       description: "View all sessions and attendance",
-      hideForParticipant: false
+      hideForParticipant: true
     },
     {
       title: "Follow-ups",
@@ -152,13 +153,13 @@ export default function ProgramDetailsPage() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ 
-      backgroundImage: 'url(/backgrou.png)', 
-      backgroundSize: '25%', 
-      backgroundRepeat: 'repeat' 
+    <div className="min-h-screen flex flex-col" style={{
+      backgroundImage: 'url(/backgrou.png)',
+      backgroundSize: '25%',
+      backgroundRepeat: 'repeat'
     }}>
       <Header />
-      
+
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Program Header */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
@@ -208,18 +209,18 @@ export default function ProgramDetailsPage() {
                   style={{ backgroundColor: card.bgColor }}
                 >
                   <div className="flex justify-center mb-3 sm:mb-4">
-                    <div 
+                    <div
                       className="p-3 sm:p-4 rounded-full"
                       style={{ backgroundColor: card.color + "20" }}
                     >
-                      <IconComponent 
+                      <IconComponent
                         size={32}
                         className="sm:w-10 sm:h-10"
                         style={{ color: card.color }}
                       />
                     </div>
                   </div>
-                  <h3 
+                  <h3
                     className="text-lg sm:text-xl font-bold text-center mb-2 capitalize"
                     style={{ color: card.color }}
                   >
@@ -229,7 +230,7 @@ export default function ProgramDetailsPage() {
                     {card.description}
                   </p>
                 </div>
-                <div 
+                <div
                   className="py-2 sm:py-3 text-center text-white text-sm sm:text-base font-medium group-hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: card.color }}
                 >

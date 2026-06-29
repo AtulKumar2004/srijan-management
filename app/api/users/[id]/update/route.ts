@@ -89,6 +89,12 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
 
     // Role change validation
     if (body.role && body.role !== initialRole) {
+      if (String(actorId) === String(targetUserId)) {
+        return NextResponse.json({
+          error: "You cannot change your own role"
+        }, { status: 403 });
+      }
+
       if (initialRole === "guest" && actorRole !== "admin") {
         return NextResponse.json({
           error: "Only admins can change the role of newly registered guests"

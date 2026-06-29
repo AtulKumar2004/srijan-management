@@ -83,6 +83,9 @@ export async function PATCH(
       request.reviewedAt = new Date();
       await request.save();
 
+      const { sendInviteEmail } = await import("@/lib/sendInviteEmail");
+      await sendInviteEmail(request.email, request.name, "Volunteer@123", "Volunteer");
+
       const userObj = user.toObject();
       delete userObj.password;
 

@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for existing user by email or phone
-    const existing = await User.findOne({ 
-      $or: [{ email }, { phone: { $in: [phone, normalizedPhone] } }] 
+    const existing = await User.findOne({
+      $or: [{ email }, { phone: { $in: [phone, normalizedPhone] } }]
     });
     if (existing) {
       if (existing.isArchived) {
@@ -127,8 +127,8 @@ export async function POST(req: NextRequest) {
       gender,
       numberOfRounds,
       connectedToTemple,
-      level,
-      grade,
+      level: level || 1,
+      grade: grade || "D",
       joinedAt,
       maritalStatus,
       programs,
@@ -138,10 +138,13 @@ export async function POST(req: NextRequest) {
       // Track who created the participant if logged in
       registeredBy: registeredBy || creatorUserId,
       handledBy: handledBy || creatorUserId,
-      
+
       // Created by admin/volunteer flow, so activate immediately
       isActive: true,
     });
+
+    const { sendInviteEmail } = await import("@/lib/sendInviteEmail");
+    await sendInviteEmail(email, name, defaultPassword, "Participant");
 
     // Best-effort outreach cleanup by phone.
     // Participant creation must succeed even if there is no outreach match.

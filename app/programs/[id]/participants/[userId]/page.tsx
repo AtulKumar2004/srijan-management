@@ -503,7 +503,7 @@ function ParticipantDetailContent() {
                   <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
                     Role *
                   </label>
-                  {isEditing ? (
+                  {isEditing && currentUserRole === 'admin' && !isSelf ? (
                     <select
                       name="role"
                       value={formData.role || ''}
@@ -736,7 +736,7 @@ function ParticipantDetailContent() {
                   <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
                     Registered By
                   </label>
-                  {isEditing ? (
+                  {isEditing && currentUserId !== userId ? (
                     <input
                       type="text"
                       name="registeredBy"
@@ -769,7 +769,7 @@ function ParticipantDetailContent() {
                         </option>
                       ))}
                     </select>
-                  ) : user?.handledBy && user.handledBy !== 'unassigned' && handledByName !== 'N/A' && !(currentUserRole === 'participant' && !isSelf) ? (
+                  ) : user?.handledBy && user.handledBy !== 'unassigned' && handledByName !== 'N/A' && currentUserRole !== 'participant' ? (
                     <button
                       type="button"
                       onClick={() => router.push(`/programs/${programId}/volunteers/${user.handledBy}`)}

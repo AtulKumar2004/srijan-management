@@ -71,7 +71,12 @@ export default function SessionsPage() {
       const meRes = await fetch("/api/auth/me");
       if (meRes.ok) {
         const meData = await meRes.json();
-        setCurrentUserRole(meData.user?.role || '');
+        const role = meData.user?.role || '';
+        setCurrentUserRole(role);
+        if (role === 'participant') {
+          router.replace(`/programs/${programId}`);
+          return;
+        }
       }
 
       // Fetch program details
