@@ -85,7 +85,7 @@ function GuestDetailsContent() {
           if (progRes.ok) {
             const progData = await progRes.json();
             const allProg = progData.programs || [];
-            const adminProg = allProg.filter((p: any) => 
+            const adminProg = allProg.filter((p: any) =>
               String(p.createdBy?._id || p.createdBy) === String(authData.user._id)
             );
             setPrograms(adminProg.length > 0 ? adminProg : allProg);
@@ -108,7 +108,7 @@ function GuestDetailsContent() {
         throw new Error("Failed to fetch guest details");
       }
       const data = await response.json();
-      
+
       if (data.user && data.user.role === "guest") {
         setGuest(data.user);
         setFormData({
@@ -238,13 +238,13 @@ function GuestDetailsContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ 
-      backgroundImage: 'url(/backgrou.png)', 
-      backgroundSize: '25%', 
-      backgroundRepeat: 'repeat' 
+    <div className="min-h-screen flex flex-col" style={{
+      backgroundImage: 'url(/backgrou.png)',
+      backgroundSize: '25%',
+      backgroundRepeat: 'repeat'
     }}>
       <Header />
-      
+
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-4xl">
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -318,43 +318,6 @@ function GuestDetailsContent() {
                     <p className="text-gray-800 py-2">{guest.name}</p>
                   )}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                  {editing && currentUser?.role === "admin" ? (
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="guest">Guest</option>
-                      <option value="participant">Participant</option>
-                      <option value="volunteer">Volunteer</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  ) : (
-                    <p className="text-gray-800 py-2 capitalize">{guest.role}</p>
-                  )}
-                </div>
-
-                {editing && currentUser?.role === "admin" && (formData.role === "participant" || formData.role === "volunteer") && (
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Program *</label>
-                    <select
-                      value={formData.programId}
-                      onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
-                      className="w-full px-4 py-2 border border-red-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500"
-                      required
-                    >
-                      <option value="">-- Select Program --</option>
-                      {programs.map(prog => (
-                        <option key={prog._id} value={prog._id}>
-                          {prog.name} {prog.temple ? `(${prog.temple})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
@@ -592,6 +555,7 @@ function GuestDetailsContent() {
                         {(currentUser?.role === "admin" || currentUser?.role === "volunteer") && <option value="volunteer">Volunteer</option>}
                         <option value="participant">Participant</option>
                         <option value="guest">Guest</option>
+                        <option value="admin">Admin</option>
                       </select>
                       {guest.role === "guest" && currentUser?.role !== "admin" && (
                         <p className="text-xs text-red-500 mt-1">Only admins can change the role of newly registered guests.</p>
