@@ -463,7 +463,7 @@ export default function AdminDashboard() {
       {/* Create Program Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 sm:p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Program</h2>
 
             <form onSubmit={handleCreateProgram}>
@@ -539,7 +539,7 @@ export default function AdminDashboard() {
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Temple <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(Must be unique across all programs)</span>
+                  Temple <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -685,7 +685,7 @@ export default function AdminDashboard() {
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Temple <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(Must be unique across all programs)</span>
+                  Temple <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
