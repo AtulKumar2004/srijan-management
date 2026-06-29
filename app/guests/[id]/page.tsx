@@ -320,6 +320,43 @@ function GuestDetailsContent() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  {editing && currentUser?.role === "admin" ? (
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="guest">Guest</option>
+                      <option value="participant">Participant</option>
+                      <option value="volunteer">Volunteer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  ) : (
+                    <p className="text-gray-800 py-2 capitalize">{guest.role}</p>
+                  )}
+                </div>
+
+                {editing && currentUser?.role === "admin" && (formData.role === "participant" || formData.role === "volunteer") && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Program *</label>
+                    <select
+                      value={formData.programId}
+                      onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
+                      className="w-full px-4 py-2 border border-red-300 rounded-lg bg-red-50 focus:ring-2 focus:ring-red-500"
+                      required
+                    >
+                      <option value="">-- Select Program --</option>
+                      {programs.map(prog => (
+                        <option key={prog._id} value={prog._id}>
+                          {prog.name} {prog.temple ? `(${prog.temple})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                   {editing ? (
                     <select

@@ -6,6 +6,7 @@ import VolunteerCreationRequest from "@/models/VolunteerCreationRequest";
 import { sendVolunteerCreationRequestEmail } from "@/lib/sendVolunteerCreationRequestEmail";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { sendInviteEmail } from "@/lib/sendInviteEmail";
 
 export async function POST(req: NextRequest) {
   try {
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isProgramAdmin = String(decoded.userId) === String(program.createdBy._id);
+    const isProgramAdmin = String(decoded.userId) === String(program.createdBy._id) || decoded.role === "admin";
 
     // That particular program's temple admin can create volunteers directly without needing approval from themselves.
     if (isProgramAdmin) {
@@ -156,8 +157,19 @@ export async function POST(req: NextRequest) {
       const obj = user.toObject();
       delete obj.password;
 
+      // Attempt to send invite email
+      let emailSent = false;
+      try {
+
+        
+        await sendInviteEmail(email, name, defaultPassword, "volunteer");
+        emailSent = true;
+      } catch (err) {
+        console.error("Failed to send invite email to new volunteer:", err);
+      }
+
       return NextResponse.json(
-        { message: "Volunteer created successfully", user: obj },
+        { message: "Volunteer created successfully", user: obj, emailSent },
         { status: 201 }
       );
     }
