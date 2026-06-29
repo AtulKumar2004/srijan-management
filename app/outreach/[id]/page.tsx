@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Edit2, Save, X, Mail, Phone, MapPin, Briefcase, Calendar, User, Home } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface Outreach {
   _id: string;
@@ -27,6 +28,7 @@ function OutreachDetailsContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const userId = params.id as string;
+  const { showAlert } = useModalStore();
 
   const [outreach, setOutreach] = useState<Outreach | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,11 +168,11 @@ function OutreachDetailsContent() {
         setEditing(false);
         await fetchOutreachDetails();
       } else {
-        alert(`Failed to update outreach contact: ${responseData.error || 'Unknown error'}`);
+        await showAlert({ title: "Update Failed", message: `Failed to update outreach contact: ${responseData.error || 'Unknown error'}`, type: "danger" });
       }
     } catch (error) {
       console.error("Error updating outreach:", error);
-      alert("Error updating outreach contact");
+      await showAlert({ title: "Error", message: "Error updating outreach contact", type: "danger" });
     } finally {
       setSaving(false);
     }

@@ -30,17 +30,17 @@ export default function SessionsPage() {
   const params = useParams();
   const programId = params.id as string;
   const { showConfirm, showAlert } = useModalStore();
-  
+
   const [program, setProgram] = useState<Program | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Accordion state
   const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
-  
+
   // Edit modal state
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editForm, setEditForm] = useState({
@@ -95,11 +95,11 @@ export default function SessionsPage() {
   };
 
   const formatDate = (dateString: Date) => {
-    return new Date(dateString).toLocaleDateString('en-US', { 
+    return new Date(dateString).toLocaleDateString('en-US', {
       weekday: 'short',
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -202,13 +202,13 @@ export default function SessionsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ 
-      backgroundImage: 'url(/backgrou.png)', 
-      backgroundSize: '25%', 
-      backgroundRepeat: 'repeat' 
+    <div className="min-h-screen flex flex-col" style={{
+      backgroundImage: 'url(/backgrou.png)',
+      backgroundSize: '25%',
+      backgroundRepeat: 'repeat'
     }}>
       <Header />
-      
+
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
@@ -291,114 +291,113 @@ export default function SessionsPage() {
               <div className="text-sm text-gray-700 font-medium">
                 Showing {filteredSessions.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredSessions.length)} of <span className="font-bold">{filteredSessions.length}</span> sessions
               </div>
-              
+
               {filteredSessions.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-sm border border-yellow-200 p-8 text-center text-gray-500 italic text-sm">
                   No sessions found matching "{searchQuery}"
                 </div>
               ) : (
                 paginatedSessions.map((session) => (
-              <div
-                key={session._id}
-                className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
-              >
-                {/* Main Row */}
-                <div
-                  onClick={() => toggleExpand(session._id)}
-                  className="flex flex-col lg:flex-row items-start lg:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer relative"
-                >
-                  {/* Left: Topic & Date */}
-                  <div className="flex items-start justify-between w-full lg:w-64 xl:w-80 flex-shrink-0 pr-8 lg:pr-0">
-                    <div>
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 break-words">
-                        {session.sessionTopic}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
-                        {formatDate(session.sessionDate)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Middle: Speaker & Counts */}
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto lg:ml-auto mr-0 lg:mr-2 text-xs sm:text-sm bg-yellow-100/60 lg:bg-transparent p-2.5 lg:p-0 rounded-lg border border-yellow-200/50 lg:border-none">
-                    {/* Speaker */}
-                    <div className="col-span-2 sm:col-span-1 text-gray-700 sm:w-44 truncate" title={session.speakerName}>
-                      <span className="text-gray-500 font-normal">Speaker: </span><span className="font-semibold text-gray-800">{session.speakerName}</span>
-                    </div>
-
-                    {/* Level */}
-                    <div className="text-gray-700 sm:w-20">
-                      <span className="text-gray-500 font-normal">Level: </span><span className="font-semibold">{session.level || 1}</span>
-                    </div>
-
-                    {/* Present */}
-                    <div className="text-green-700 font-semibold sm:w-24">
-                      Present: {session.presentCount ?? 0}
-                    </div>
-
-                    {/* Absent */}
-                    <div className="text-red-700 font-semibold sm:w-24">
-                      Absent: {session.absentCount ?? 0}
-                    </div>
-                  </div>
-
-                  {/* Expand Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(session._id);
-                    }}
-                    className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 absolute top-3 right-3 lg:static lg:ml-1"
+                  <div
+                    key={session._id}
+                    className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
                   >
-                    <ChevronDown 
-                      size={18} 
-                      className={`transform transition-transform ${
-                        expandedSessionIds.includes(session._id) ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                </div>
+                    {/* Main Row */}
+                    <div
+                      onClick={() => toggleExpand(session._id)}
+                      className="flex flex-col lg:flex-row items-start lg:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer relative"
+                    >
+                      {/* Left: Topic & Date */}
+                      <div className="flex items-start justify-between w-full lg:w-64 xl:w-80 flex-shrink-0 pr-8 lg:pr-0">
+                        <div>
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-800 break-words">
+                            {session.sessionTopic}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                            {formatDate(session.sessionDate)}
+                          </p>
+                        </div>
+                      </div>
 
-                {/* Expanded Details Section */}
-                {expandedSessionIds.includes(session._id) && (
-                  <div className="border-t border-yellow-200 p-4 sm:p-6 bg-yellow-100/40 space-y-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Description</h4>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                        {session.description || "No description provided."}
-                      </p>
-                    </div>
+                      {/* Middle: Speaker & Counts */}
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto lg:ml-auto mr-0 lg:mr-2 text-xs sm:text-sm bg-yellow-100/60 lg:bg-transparent p-2.5 lg:p-0 rounded-lg border border-yellow-200/50 lg:border-none">
+                        {/* Speaker */}
+                        <div className="col-span-2 sm:col-span-1 text-gray-700 sm:w-44 truncate" title={session.speakerName}>
+                          <span className="text-gray-500 font-normal">Speaker: </span><span className="font-semibold text-gray-800">{session.speakerName}</span>
+                        </div>
 
-                    {/* Maroon Buttons */}
-                    <div className="flex items-center gap-3 pt-2">
+                        {/* Level */}
+                        <div className="text-gray-700 sm:w-20">
+                          <span className="text-gray-500 font-normal">Level: </span><span className="font-semibold">{session.level || 1}</span>
+                        </div>
+
+                        {/* Present */}
+                        <div className="text-green-700 font-semibold sm:w-24">
+                          Present: {session.presentCount ?? 0}
+                        </div>
+
+                        {/* Absent */}
+                        <div className="text-red-700 font-semibold sm:w-24">
+                          Absent: {session.absentCount ?? 0}
+                        </div>
+                      </div>
+
+                      {/* Expand Button */}
                       <button
-                        onClick={() => router.push(`/programs/${programId}/sessions/${session._id}`)}
-                        className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand(session._id);
+                        }}
+                        className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 absolute top-3 right-3 lg:static lg:ml-1"
                       >
-                        View Details
+                        <ChevronDown
+                          size={18}
+                          className={`transform transition-transform ${expandedSessionIds.includes(session._id) ? 'rotate-180' : ''
+                            }`}
+                        />
                       </button>
-
-                      {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (
-                        <>
-                          <button
-                            onClick={() => openEditModal(session)}
-                            className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(session._id)}
-                            className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
                     </div>
+
+                    {/* Expanded Details Section */}
+                    {expandedSessionIds.includes(session._id) && (
+                      <div className="border-t border-yellow-200 p-4 sm:p-6 bg-yellow-100/40 space-y-4">
+                        <div>
+                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Description</h4>
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                            {session.description || "No description provided."}
+                          </p>
+                        </div>
+
+                        {/* Maroon Buttons */}
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            onClick={() => router.push(`/programs/${programId}/sessions/${session._id}`)}
+                            className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                          >
+                            View Details
+                          </button>
+
+                          {currentUserRole === 'admin' && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(session)}
+                                className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(session._id)}
+                                className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              ))
+                ))
               )}
               {filteredSessions.length > 0 && (
                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
@@ -419,7 +418,7 @@ export default function SessionsPage() {
               <X size={20} />
             </button>
             <h3 className="text-xl font-bold text-gray-800">Edit Session</h3>
-            
+
             <form onSubmit={handleEditSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Topic</label>

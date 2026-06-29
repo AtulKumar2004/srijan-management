@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Calendar as CalendarIcon, AlertCircle } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
@@ -18,6 +19,7 @@ export default function GraphicalAnalysisPage() {
   const router = useRouter();
   const params = useParams();
   const programId = params.id as string;
+  const { showAlert } = useModalStore();
 
   const [currentUserRole, setCurrentUserRole] = useState<string>("");
   const [authLoading, setAuthLoading] = useState(true);
@@ -95,10 +97,11 @@ export default function GraphicalAnalysisPage() {
         setChartCategories(data.chartData?.categories || []);
         setChartSeries(data.chartData?.series || []);
       } else {
-        alert("Failed to fetch analysis data.");
+        await showAlert({ title: "Fetch Failed", message: "Failed to fetch analysis data.", type: "danger" });
       }
     } catch (error) {
       console.error("Error fetching analysis:", error);
+      await showAlert({ title: "Error", message: "An error occurred while fetching analysis.", type: "danger" });
     } finally {
       setLoading(false);
     }

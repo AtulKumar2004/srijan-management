@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Edit2, Save, X, Mail, Phone, MapPin, Briefcase, Calendar, User, Home } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface Guest {
   _id: string;
@@ -32,6 +33,7 @@ function GuestDetailsContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const userId = params.id as string;
+  const { showAlert } = useModalStore();
 
   const [guest, setGuest] = useState<Guest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,11 +171,11 @@ function GuestDetailsContent() {
         await fetchGuestDetails();
         setEditing(false);
       } else {
-        alert("Failed to update guest");
+        await showAlert({ title: "Update Failed", message: "Failed to update guest", type: "danger" });
       }
     } catch (error) {
       console.error("Error updating guest:", error);
-      alert("Error updating guest");
+      await showAlert({ title: "Error", message: "Error updating guest", type: "danger" });
     } finally {
       setSaving(false);
     }

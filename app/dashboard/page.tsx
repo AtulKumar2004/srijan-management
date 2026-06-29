@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useRouter } from "next/navigation";
 import { Trash } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface Program {
   _id: string;
@@ -56,6 +57,7 @@ const compressImageToDataUrl = (file: File): Promise<string> => {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { showConfirm, showAlert } = useModalStore();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -84,7 +86,7 @@ export default function AdminDashboard() {
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'new' | 'edit') => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setUploadingPhoto(true);
     try {
       const compressed = await compressImageToDataUrl(file);
@@ -94,8 +96,8 @@ export default function AdminDashboard() {
         setEditProgram(prev => ({ ...prev, photo: compressed }));
       }
     } catch (error) {
-      console.error("Failed to compress/upload photo:", error);
-      alert("Failed to process photo. Please select a valid image file.");
+      console.error('Error compressing image:', error);
+      await showAlert({ title: "Error", message: "Failed to process photo. Please select a valid image file.", type: "danger" });
     } finally {
       setUploadingPhoto(false);
     }
@@ -109,7 +111,7 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/auth/me");
       const contentType = res.headers.get("content-type");
-      
+
       if (res.ok && contentType?.includes("application/json")) {
         const data = await res.json();
         if (data.user) {
@@ -146,15 +148,15 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/programs");
       const contentType = res.headers.get("content-type");
-      
+
       if (res.ok && contentType?.includes("application/json")) {
         const data = await res.json();
         let filteredPrograms = data.programs || [];
-        
+
         // Programs are already filtered by the API based on role
         // Volunteers only get their enrolled programs
         // Admins get all programs
-        
+
         setPrograms(filteredPrograms);
       } else if (!contentType?.includes("application/json")) {
         console.error("API returned non-JSON response");
@@ -171,7 +173,8 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteProgram = async (programId: string, programName: string) => {
-    if (!confirm(`Are you sure you want to delete "${programName}"? This action cannot be undone.`)) {
+    const confirmed = await showConfirm({ title: "Delete Program", message: `Are you sure you want to delete "${programName}"? This action cannot be undone.`, type: "danger", confirmText: "Delete Program" });
+    if (!confirmed) {
       return;
     }
 
@@ -186,14 +189,14 @@ export default function AdminDashboard() {
         const contentType = res.headers.get("content-type");
         if (contentType?.includes("application/json")) {
           const error = await res.json();
-          alert(error.error || "Failed to delete program");
+          await showAlert({ title: "Delete Failed", message: error.error || "Failed to delete program", type: "danger" });
         } else {
-          alert("Failed to delete program");
+          await showAlert({ title: "Delete Failed", message: "Failed to delete program", type: "danger" });
         }
       }
     } catch (error) {
       console.error("Error deleting program:", error);
-      alert("Failed to delete program");
+      await showAlert({ title: "Error", message: "Failed to delete program", type: "danger" });
     }
   };
 
@@ -213,7 +216,7 @@ export default function AdminDashboard() {
   const handleUpdateProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProgram) return;
-    
+
     try {
       const res = await fetch(`/api/programs/${editingProgram._id}`, {
         method: "PUT",
@@ -237,20 +240,20 @@ export default function AdminDashboard() {
         const contentType = res.headers.get("content-type");
         if (contentType?.includes("application/json")) {
           const error = await res.json();
-          alert(error.error || "Failed to update program");
+          await showAlert({ title: "Update Failed", message: error.error || "Failed to update program", type: "danger" });
         } else {
-          alert("Failed to update program");
+          await showAlert({ title: "Update Failed", message: "Failed to update program", type: "danger" });
         }
       }
     } catch (error) {
       console.error("Error updating program:", error);
-      alert("Failed to update program");
+      await showAlert({ title: "Error", message: "Failed to update program", type: "danger" });
     }
   };
 
   const handleCreateProgram = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const res = await fetch("/api/programs/create", {
         method: "POST",
@@ -273,14 +276,14 @@ export default function AdminDashboard() {
         const contentType = res.headers.get("content-type");
         if (contentType?.includes("application/json")) {
           const error = await res.json();
-          alert(error.error || "Failed to create program");
+          await showAlert({ title: "Create Failed", message: error.error || "Failed to create program", type: "danger" });
         } else {
-          alert("Failed to create program");
+          await showAlert({ title: "Create Failed", message: "Failed to create program", type: "danger" });
         }
       }
     } catch (error) {
       console.error("Error creating program:", error);
-      alert("Failed to create program");
+      await showAlert({ title: "Error", message: "Failed to create program", type: "danger" });
     }
   };
 
@@ -297,16 +300,16 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" 
-    style={{ backgroundImage: 'url(/backgrou.png)', backgroundSize: '30%', backgroundRepeat: 'repeat' }}>
+    <div className="min-h-screen flex flex-col"
+      style={{ backgroundImage: 'url(/backgrou.png)', backgroundSize: '30%', backgroundRepeat: 'repeat' }}>
       <Header />
-      
+
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
           <h1 className="text-3xl font-bold text-gray-800">
-            Hare Krishna { user?.name }
+            Hare Krishna {user?.name}
           </h1>
-          
+
           <div className="flex flex-wrap gap-4">
             {/* Guests Card - only for admins */}
             {user?.role === "admin" && (
@@ -416,25 +419,25 @@ export default function AdminDashboard() {
               )}
               <div className="p-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-3">{program.name}</h2>
-              {program.description && (
-                <p className="text-gray-600 mb-4">{program.description}</p>
-              )}
-              {(program.minAge || program.maxAge) && (
+                {program.description && (
+                  <p className="text-gray-600 mb-4">{program.description}</p>
+                )}
+                {(program.minAge || program.maxAge) && (
+                  <div className="flex items-center text-sm text-gray-500 mb-2">
+                    <span className="font-medium">Age Range:</span>
+                    <span className="ml-2">
+                      {program.minAge || "N/A"} - {program.maxAge || "N/A"} years
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center text-sm text-gray-500 mb-2">
-                  <span className="font-medium">Age Range:</span>
-                  <span className="ml-2">
-                    {program.minAge || "N/A"} - {program.maxAge || "N/A"} years
-                  </span>
+                  <span className="font-medium">Temple:</span>
+                  <span className="ml-2">{program.temple || "Not specified"}</span>
                 </div>
-              )}
-              <div className="flex items-center text-sm text-gray-500 mb-2">
-                <span className="font-medium">Temple:</span>
-                <span className="ml-2">{program.temple || "Not specified"}</span>
-              </div>
-              <div className="flex items-center text-sm text-gray-500 mb-2">
-                <span className="font-medium">Created by:</span>
-                <span className="ml-2">{program.createdBy?.name || "Not specified"}</span>
-              </div>
+                <div className="flex items-center text-sm text-gray-500 mb-2">
+                  <span className="font-medium">Created by:</span>
+                  <span className="ml-2">{program.createdBy?.name || "Not specified"}</span>
+                </div>
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <button className="font-medium cursor-pointer" style={{ color: '#A65353' }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#8B4545'}
@@ -462,7 +465,7 @@ export default function AdminDashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Create New Program</h2>
-            
+
             <form onSubmit={handleCreateProgram}>
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
@@ -610,7 +613,7 @@ export default function AdminDashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Edit Program</h2>
-            
+
             <form onSubmit={handleUpdateProgram}>
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">

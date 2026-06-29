@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Search, Filter, X, ChevronDown, Phone } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface Outreach {
   _id: string;
@@ -24,6 +25,7 @@ interface Outreach {
 
 export default function OutreachPage() {
   const router = useRouter();
+  const { showConfirm, showAlert } = useModalStore();
   
   const [outreachContacts, setOutreachContacts] = useState<Outreach[]>([]);
   const [filteredOutreach, setFilteredOutreach] = useState<Outreach[]>([]);
@@ -117,7 +119,8 @@ export default function OutreachPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete ${name}?`)) {
+    const confirmed = await showConfirm({ title: "Delete Contact", message: `Are you sure you want to delete ${name}?`, type: "danger", confirmText: "Delete" });
+    if (!confirmed) {
       return;
     }
 
@@ -131,11 +134,11 @@ export default function OutreachPage() {
         await fetchOutreach();
         setExpandedOutreach([]);
       } else {
-        alert('Failed to delete outreach contact');
+        await showAlert({ title: "Delete Failed", message: "Failed to delete outreach contact", type: "danger" });
       }
     } catch (error) {
       console.error('Error deleting outreach:', error);
-      alert('Error deleting outreach contact');
+      await showAlert({ title: "Error", message: "Error deleting outreach contact", type: "danger" });
     }
   };
 

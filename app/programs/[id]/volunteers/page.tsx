@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Search, Filter, X, Edit, ChevronDown, Plus, UserPlus, Phone, Mail, MapPin, Briefcase, Archive, Download, Trash2 } from "lucide-react";
 import Pagination from "@/components/Pagination";
+import { useModalStore } from "@/store/modalStore";
 
 interface Volunteer {
   _id: string;
@@ -40,7 +41,8 @@ export default function VolunteersPage() {
   const router = useRouter();
   const params = useParams();
   const programId = params.id as string;
-  
+  const { showConfirm, showAlert } = useModalStore();
+
   const [program, setProgram] = useState<Program | null>(null);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [filteredVolunteers, setFilteredVolunteers] = useState<Volunteer[]>([]);
@@ -48,7 +50,7 @@ export default function VolunteersPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGender, setFilterGender] = useState("");
@@ -130,7 +132,7 @@ export default function VolunteersPage() {
     if (bulkEditFields.participantsUnder && bulkEditValues.participantsUnder !== "") updates.participantsUnder = parseInt(bulkEditValues.participantsUnder);
 
     if (Object.keys(updates).length === 0) {
-      alert("Please select and enter at least one field to update.");
+      await showAlert({ title: "No Fields Selected", message: "Please select and enter at least one field to update.", type: "warning" });
       return;
     }
 
@@ -149,11 +151,11 @@ export default function VolunteersPage() {
         setBulkEditFields({});
         fetchData();
       } else {
-        alert(data.error || "Bulk update failed");
+        await showAlert({ title: "Update Failed", message: data.error || "Bulk update failed", type: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred during bulk update");
+      await showAlert({ title: "Error", message: "An error occurred during bulk update", type: "danger" });
     } finally {
       setBulkUpdating(false);
     }
@@ -175,11 +177,11 @@ export default function VolunteersPage() {
         setSelectedVolunteers([]);
         fetchData();
       } else {
-        alert(data.error || "Bulk assign failed");
+        await showAlert({ title: "Assign Failed", message: data.error || "Bulk assign failed", type: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("An error occurred during bulk assign");
+      await showAlert({ title: "Error", message: "An error occurred during bulk assign", type: "danger" });
     } finally {
       setBulkUpdating(false);
     }
@@ -256,7 +258,7 @@ export default function VolunteersPage() {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(v => 
+      filtered = filtered.filter(v =>
         v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.phone?.includes(searchTerm)
@@ -285,7 +287,7 @@ export default function VolunteersPage() {
 
     // HomeTown filter
     if (filterHomeTown) {
-      filtered = filtered.filter(v => 
+      filtered = filtered.filter(v =>
         v.homeTown?.toLowerCase().includes(filterHomeTown.toLowerCase())
       );
     }
@@ -339,7 +341,8 @@ export default function VolunteersPage() {
     const promptMsg = isPermanent
       ? `Are you sure you want to PERMANENTLY delete ${volunteerName}? This action cannot be undone.`
       : `Are you sure you want to move ${volunteerName} to archived list?`;
-    if (!confirm(promptMsg)) {
+    const confirmed = await showConfirm({ title: isPermanent ? "Permanently Delete" : "Archive Volunteer", message: promptMsg, type: "danger", confirmText: isPermanent ? "Permanently Delete" : "Archive" });
+    if (!confirmed) {
       return;
     }
 
@@ -369,13 +372,14 @@ export default function VolunteersPage() {
     if (selectedVolunteers.length === 0) return;
     const toDelete = selectedVolunteers.filter(id => id !== currentUserId);
     if (toDelete.length === 0) {
-      alert("You cannot delete your own record.");
+      await showAlert({ title: "Cannot Delete", message: "You cannot delete your own record.", type: "warning" });
       return;
     }
     const promptMsg = isPermanent
       ? `Are you sure you want to PERMANENTLY delete ${toDelete.length} selected volunteer(s)? This action cannot be undone.`
       : `Are you sure you want to move ${toDelete.length} selected volunteer(s) to archived list?`;
-    if (!confirm(promptMsg)) return;
+    const confirmed = await showConfirm({ title: isPermanent ? "Permanently Delete" : "Archive Volunteers", message: promptMsg, type: "danger", confirmText: isPermanent ? "Permanently Delete" : "Archive" });
+    if (!confirmed) return;
 
     try {
       await Promise.all(
@@ -396,7 +400,8 @@ export default function VolunteersPage() {
   };
 
   const handleUnarchiveVolunteer = async (volunteerId: string, volunteerName: string) => {
-    if (!confirm(`Are you sure you want to unarchive ${volunteerName}?`)) return;
+    const confirmed = await showConfirm({ title: "Unarchive Volunteer", message: `Are you sure you want to unarchive ${volunteerName}?`, type: "info", confirmText: "Unarchive" });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/users/${volunteerId}/update`, {
         method: 'PUT',
@@ -420,7 +425,8 @@ export default function VolunteersPage() {
   };
 
   const handleBulkUnarchiveVolunteers = async () => {
-    if (!confirm(`Are you sure you want to unarchive ${selectedVolunteers.length} selected volunteer(s)?`)) return;
+    const confirmed = await showConfirm({ title: "Unarchive Volunteers", message: `Are you sure you want to unarchive ${selectedVolunteers.length} selected volunteer(s)?`, type: "info", confirmText: "Unarchive All" });
+    if (!confirmed) return;
     try {
       const res = await fetch("/api/volunteers/bulk-update", {
         method: "POST",
@@ -539,9 +545,9 @@ export default function VolunteersPage() {
   const totalPages = Math.max(1, Math.ceil(filteredVolunteers.length / itemsPerPage));
   const paginatedVolunteers = filteredVolunteers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = async () => {
     if (filteredVolunteers.length === 0) {
-      alert("No data available to download.");
+      await showAlert({ title: "No Data", message: "No data available to download.", type: "info" });
       return;
     }
 
@@ -607,8 +613,8 @@ export default function VolunteersPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
-      backgroundImage: 'url(/backgrou.png)', 
+    <div className="min-h-screen flex flex-col bg-gray-50" style={{
+      backgroundImage: 'url(/backgrou.png)',
       backgroundSize: '25%',
       backgroundPosition: 'center',
       backgroundAttachment: 'fixed'
@@ -620,7 +626,7 @@ export default function VolunteersPage() {
           {toast.text}
         </div>
       )}
-      
+
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
@@ -644,9 +650,8 @@ export default function VolunteersPage() {
                 <button
                   type="button"
                   onClick={() => setShowArchived(!showArchived)}
-                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${
-                    showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
-                  }`}
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
+                    }`}
                 >
                   <Archive size={18} className="sm:w-5 sm:h-5" />
                   <span>{showArchived ? 'Active List' : `Archived (${volunteers.filter(v => v.isArchived).length})`}</span>
@@ -677,9 +682,8 @@ export default function VolunteersPage() {
 
         {/* Message */}
         {message && (
-          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
+          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
             {message.text}
           </div>
         )}
@@ -698,7 +702,7 @@ export default function VolunteersPage() {
                 className="w-full pl-10 pr-3 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
+
             {/* Filter Buttons */}
             <div className="flex gap-2">
               <button
@@ -707,8 +711,8 @@ export default function VolunteersPage() {
               >
                 <Filter size={18} className="sm:w-5 sm:h-5" />
                 <span>Filters</span>
-                <ChevronDown 
-                  size={16} 
+                <ChevronDown
+                  size={16}
                   className={`transform transition-transform ${showFilters ? 'rotate-180' : ''}`}
                 />
               </button>
@@ -963,7 +967,7 @@ export default function VolunteersPage() {
               className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
             >
               {/* Main Row */}
-              <div 
+              <div
                 onClick={() => setExpandedVolunteer(
                   expandedVolunteer.includes(volunteer._id)
                     ? expandedVolunteer.filter(id => id !== volunteer._id)
@@ -1023,15 +1027,14 @@ export default function VolunteersPage() {
                     }}
                     className="xl:hidden p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
                   >
-                    <ChevronDown 
-                      size={18} 
-                      className={`transform transition-transform ${
-                        expandedVolunteer.includes(volunteer._id) ? 'rotate-180' : ''
-                      }`}
+                    <ChevronDown
+                      size={18}
+                      className={`transform transition-transform ${expandedVolunteer.includes(volunteer._id) ? 'rotate-180' : ''
+                        }`}
                     />
                   </button>
                 </div>
-                
+
                 {/* Right Side Stats Group (Wraps cleanly on mobile) */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-gray-700 xl:ml-auto mr-1 sm:mr-2 pl-6 sm:pl-0">
                   {/* Contact Icons */}
@@ -1046,7 +1049,7 @@ export default function VolunteersPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
                           </svg>
                         </a>
                         <a
@@ -1093,11 +1096,10 @@ export default function VolunteersPage() {
                   }}
                   className="hidden xl:block p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
                 >
-                  <ChevronDown 
-                    size={18} 
-                    className={`transform transition-transform ${
-                      expandedVolunteer.includes(volunteer._id) ? 'rotate-180' : ''
-                    }`}
+                  <ChevronDown
+                    size={18}
+                    className={`transform transition-transform ${expandedVolunteer.includes(volunteer._id) ? 'rotate-180' : ''
+                      }`}
                   />
                 </button>
               </div>
@@ -1108,18 +1110,18 @@ export default function VolunteersPage() {
                   <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
                     The Details Review of Volunteer:
                   </h4>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Profession:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{volunteer.profession || 'N/A'}</span>
                     </div>
-                    
+
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Home Town:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{volunteer.homeTown || 'N/A'}</span>
                     </div>
-                    
+
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Email:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800 break-all">{volunteer.email}</span>
@@ -1150,7 +1152,7 @@ export default function VolunteersPage() {
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Registered By:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">
-                        {volunteer.registeredBy && volunteer.registeredBy !== 'unassigned' ? (handlerNames[volunteer.registeredBy] || volunteers.find(v => v._id === volunteer.registeredBy)?.name || 'N/A') : 'N/A'}
+                        {volunteer.registeredBy || 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -1438,9 +1440,8 @@ export default function VolunteersPage() {
 
               {/* Modal Message */}
               {message && (
-                <div className={`mt-3 sm:mt-4 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${
-                  message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}>
+                <div className={`mt-3 sm:mt-4 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
                   {message.text}
                 </div>
               )}
@@ -1494,14 +1495,14 @@ export default function VolunteersPage() {
               <p className="text-sm text-gray-500 mb-4 bg-yellow-50 p-3 rounded-xl border border-yellow-200 font-medium">
                 Check the box next to any field you want to modify across all <strong>{selectedVolunteers.length}</strong> selected volunteer(s).
               </p>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Level */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.level || false} onChange={e => setBulkEditFields({...bulkEditFields, level: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.level || false} onChange={e => setBulkEditFields({ ...bulkEditFields, level: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Level</label>
-                    <select disabled={!bulkEditFields.level} value={bulkEditValues.level} onChange={e => setBulkEditValues({...bulkEditValues, level: e.target.value})} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
+                    <select disabled={!bulkEditFields.level} value={bulkEditValues.level} onChange={e => setBulkEditValues({ ...bulkEditValues, level: e.target.value })} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
                       <option value="">Select Level</option>
                       <option value="1">1</option>
                       <option value="2">2</option>
@@ -1513,10 +1514,10 @@ export default function VolunteersPage() {
 
                 {/* Grade */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.grade || false} onChange={e => setBulkEditFields({...bulkEditFields, grade: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.grade || false} onChange={e => setBulkEditFields({ ...bulkEditFields, grade: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Grade</label>
-                    <select disabled={!bulkEditFields.grade} value={bulkEditValues.grade} onChange={e => setBulkEditValues({...bulkEditValues, grade: e.target.value})} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
+                    <select disabled={!bulkEditFields.grade} value={bulkEditValues.grade} onChange={e => setBulkEditValues({ ...bulkEditValues, grade: e.target.value })} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
                       <option value="">Select Grade</option>
                       <option value="A">A</option>
                       <option value="B">B</option>
@@ -1528,10 +1529,10 @@ export default function VolunteersPage() {
 
                 {/* Number of Rounds */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.numberOfRounds || false} onChange={e => setBulkEditFields({...bulkEditFields, numberOfRounds: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.numberOfRounds || false} onChange={e => setBulkEditFields({ ...bulkEditFields, numberOfRounds: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Number of Rounds</label>
-                    <input type="number" min="0" disabled={!bulkEditFields.numberOfRounds} value={bulkEditValues.numberOfRounds} onChange={e => setBulkEditValues({...bulkEditValues, numberOfRounds: e.target.value})} placeholder="e.g. 16" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
+                    <input type="number" min="0" disabled={!bulkEditFields.numberOfRounds} value={bulkEditValues.numberOfRounds} onChange={e => setBulkEditValues({ ...bulkEditValues, numberOfRounds: e.target.value })} placeholder="e.g. 16" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
                   </div>
                 </div>
 
@@ -1539,10 +1540,10 @@ export default function VolunteersPage() {
 
                 {/* Gender */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.gender || false} onChange={e => setBulkEditFields({...bulkEditFields, gender: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.gender || false} onChange={e => setBulkEditFields({ ...bulkEditFields, gender: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Gender</label>
-                    <select disabled={!bulkEditFields.gender} value={bulkEditValues.gender} onChange={e => setBulkEditValues({...bulkEditValues, gender: e.target.value})} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
+                    <select disabled={!bulkEditFields.gender} value={bulkEditValues.gender} onChange={e => setBulkEditValues({ ...bulkEditValues, gender: e.target.value })} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
                       <option value="">Select Gender</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
@@ -1552,10 +1553,10 @@ export default function VolunteersPage() {
 
                 {/* Marital Status */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.maritalStatus || false} onChange={e => setBulkEditFields({...bulkEditFields, maritalStatus: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.maritalStatus || false} onChange={e => setBulkEditFields({ ...bulkEditFields, maritalStatus: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Marital Status</label>
-                    <select disabled={!bulkEditFields.maritalStatus} value={bulkEditValues.maritalStatus} onChange={e => setBulkEditValues({...bulkEditValues, maritalStatus: e.target.value})} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
+                    <select disabled={!bulkEditFields.maritalStatus} value={bulkEditValues.maritalStatus} onChange={e => setBulkEditValues({ ...bulkEditValues, maritalStatus: e.target.value })} className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50">
                       <option value="">Select Marital Status</option>
                       <option value="Single">Single</option>
                       <option value="Married">Married</option>
@@ -1567,19 +1568,19 @@ export default function VolunteersPage() {
 
                 {/* Profession */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.profession || false} onChange={e => setBulkEditFields({...bulkEditFields, profession: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.profession || false} onChange={e => setBulkEditFields({ ...bulkEditFields, profession: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Profession</label>
-                    <input type="text" disabled={!bulkEditFields.profession} value={bulkEditValues.profession} onChange={e => setBulkEditValues({...bulkEditValues, profession: e.target.value})} placeholder="Enter profession" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
+                    <input type="text" disabled={!bulkEditFields.profession} value={bulkEditValues.profession} onChange={e => setBulkEditValues({ ...bulkEditValues, profession: e.target.value })} placeholder="Enter profession" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
                   </div>
                 </div>
 
                 {/* Home Town */}
                 <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
-                  <input type="checkbox" checked={bulkEditFields.homeTown || false} onChange={e => setBulkEditFields({...bulkEditFields, homeTown: e.target.checked})} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
+                  <input type="checkbox" checked={bulkEditFields.homeTown || false} onChange={e => setBulkEditFields({ ...bulkEditFields, homeTown: e.target.checked })} className="mt-1 w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer" />
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700">Home Town</label>
-                    <input type="text" disabled={!bulkEditFields.homeTown} value={bulkEditValues.homeTown} onChange={e => setBulkEditValues({...bulkEditValues, homeTown: e.target.value})} placeholder="Enter hometown" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
+                    <input type="text" disabled={!bulkEditFields.homeTown} value={bulkEditValues.homeTown} onChange={e => setBulkEditValues({ ...bulkEditValues, homeTown: e.target.value })} placeholder="Enter hometown" className="mt-1 w-full px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm disabled:opacity-50" />
                   </div>
                 </div>
               </div>

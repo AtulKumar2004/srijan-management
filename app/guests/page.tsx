@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, ChevronDown, Phone } from "lucide-react";
+import { Search, Filter, X, ChevronDown, Phone, Trash2 } from "lucide-react";
 import { useModalStore } from "@/store/modalStore";
 
 interface Guest {
@@ -233,6 +233,35 @@ export default function GuestsPage() {
     }
   };
 
+  const handleBulkDeleteGuests = async () => {
+    if (selectedGuests.length === 0) return;
+    const confirmed = await showConfirm({
+      title: "Delete Guests",
+      message: `Are you sure you want to PERMANENTLY delete ${selectedGuests.length} selected guest(s)? This action cannot be undone.`,
+      type: "danger",
+      confirmText: "Delete Guests"
+    });
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(
+        selectedGuests.map((id) =>
+          fetch(`/api/users/${id}?permanent=true`, {
+            method: "DELETE",
+          })
+        )
+      );
+
+      setMessage({ type: "success", text: `${selectedGuests.length} guest(s) deleted successfully!` });
+      setSelectedGuests([]);
+      fetchGuests();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error("Error bulk deleting guests:", error);
+      await showAlert({ title: "Error", message: "Error deleting selected guests", type: "danger" });
+    }
+  };
+
   const handleDeleteGuest = async (guestId: string, guestName: string) => {
     const confirmed = await showConfirm({
       title: "Delete Guest",
@@ -418,6 +447,13 @@ export default function GuestsPage() {
                   className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
                 >
                   Bulk Edit Fields
+                </button>
+                <button
+                  onClick={handleBulkDeleteGuests}
+                  className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm flex items-center gap-1.5"
+                >
+                  <Trash2 size={16} />
+                  Delete
                 </button>
               </div>
             )}

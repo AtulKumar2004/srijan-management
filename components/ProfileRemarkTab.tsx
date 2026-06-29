@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Search, Filter, Save, X, Trash2 } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface RemarkItem {
   _id: string;
@@ -18,6 +19,7 @@ interface ProfileRemarkTabProps {
 }
 
 export default function ProfileRemarkTab({ userId, programId, canEdit }: ProfileRemarkTabProps) {
+  const { showConfirm } = useModalStore();
   const [remarks, setRemarks] = useState<RemarkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -100,7 +102,8 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
   };
 
   const handleDelete = async (followUpId: string) => {
-    if (!window.confirm("Are you sure you want to delete this remark?")) return;
+    const confirmed = await showConfirm({ title: "Delete Remark", message: "Are you sure you want to delete this remark?", type: "danger", confirmText: "Delete" });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/users/${userId}/remarks?followUpId=${followUpId}`, {
         method: "DELETE"
@@ -121,10 +124,11 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
 
   const handleBulkDelete = async () => {
     if (selectedRemarks.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedRemarks.length} selected remark(s)?`)) return;
+    const confirmed = await showConfirm({ title: "Delete Selected Remarks", message: `Are you sure you want to delete ${selectedRemarks.length} selected remark(s)?`, type: "danger", confirmText: "Delete All" });
+    if (!confirmed) return;
 
     try {
-      await Promise.all(selectedRemarks.map(id => 
+      await Promise.all(selectedRemarks.map(id =>
         fetch(`/api/users/${userId}/remarks?followUpId=${id}`, { method: "DELETE" })
       ));
       setMessage({ type: "success", text: `${selectedRemarks.length} remark(s) deleted successfully!` });
@@ -148,9 +152,8 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
   return (
     <div className="space-y-4">
       {message && (
-        <div className={`p-3 sm:p-4 rounded-xl text-sm sm:text-base font-medium ${
-          message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-        }`}>
+        <div className={`p-3 sm:p-4 rounded-xl text-sm sm:text-base font-medium ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+          }`}>
           {message.text}
         </div>
       )}

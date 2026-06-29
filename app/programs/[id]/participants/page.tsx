@@ -47,7 +47,7 @@ export default function ParticipantsPage() {
   const params = useParams();
   const programId = params.id as string;
   const { showConfirm, showAlert } = useModalStore();
-  
+
   const [program, setProgram] = useState<Program | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -63,7 +63,7 @@ export default function ParticipantsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [showArchived, setShowArchived] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // Bulk action states
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -92,7 +92,7 @@ export default function ParticipantsPage() {
     gender: "",
     maritalStatus: ""
   });
-  
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGender, setFilterGender] = useState("");
@@ -140,14 +140,14 @@ export default function ParticipantsPage() {
         const data = await participantsRes.json();
         const participantsList = data.users || [];
         setParticipants(participantsList);
-        
+
         // Fetch volunteer names for registeredBy and handledBy
         const volunteerIds = new Set<string>();
         participantsList.forEach((p: Participant) => {
           if (p.registeredBy) volunteerIds.add(p.registeredBy);
           if (p.handledBy) volunteerIds.add(p.handledBy);
         });
-        
+
         const namesMap: { [key: string]: string } = {};
         await Promise.all(
           Array.from(volunteerIds).map(async (id) => {
@@ -183,7 +183,7 @@ export default function ParticipantsPage() {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.phone?.includes(searchTerm)
@@ -211,7 +211,7 @@ export default function ParticipantsPage() {
 
     // HomeTown filter
     if (filterHomeTown) {
-      filtered = filtered.filter(p => 
+      filtered = filtered.filter(p =>
         p.homeTown?.toLowerCase().includes(filterHomeTown.toLowerCase())
       );
     }
@@ -254,7 +254,8 @@ export default function ParticipantsPage() {
     const promptMsg = isPermanent
       ? `Are you sure you want to PERMANENTLY delete ${participantName}? This action cannot be undone.`
       : `Are you sure you want to move ${participantName} to archived list?`;
-    if (!confirm(promptMsg)) {
+    const confirmed = await showConfirm({ title: isPermanent ? "Permanently Delete" : "Archive Participant", message: promptMsg, type: "danger", confirmText: isPermanent ? "Permanently Delete" : "Archive" });
+    if (!confirmed) {
       return;
     }
 
@@ -285,7 +286,8 @@ export default function ParticipantsPage() {
     const promptMsg = isPermanent
       ? `Are you sure you want to PERMANENTLY delete ${selectedParticipants.length} selected participant(s)? This action cannot be undone.`
       : `Are you sure you want to move ${selectedParticipants.length} selected participant(s) to archived list?`;
-    if (!confirm(promptMsg)) return;
+    const confirmed = await showConfirm({ title: isPermanent ? "Permanently Delete" : "Archive Participants", message: promptMsg, type: "danger", confirmText: isPermanent ? "Permanently Delete" : "Archive" });
+    if (!confirmed) return;
 
     try {
       await Promise.all(
@@ -306,7 +308,8 @@ export default function ParticipantsPage() {
   };
 
   const handleUnarchiveParticipant = async (participantId: string, participantName: string) => {
-    if (!confirm(`Are you sure you want to unarchive ${participantName}?`)) return;
+    const confirmed = await showConfirm({ title: "Unarchive Participant", message: `Are you sure you want to unarchive ${participantName}?`, type: "info", confirmText: "Unarchive" });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/users/${participantId}/update`, {
         method: 'PUT',
@@ -330,7 +333,8 @@ export default function ParticipantsPage() {
   };
 
   const handleBulkUnarchiveParticipants = async () => {
-    if (!confirm(`Are you sure you want to unarchive ${selectedParticipants.length} selected participant(s)?`)) return;
+    const confirmed = await showConfirm({ title: "Unarchive Participants", message: `Are you sure you want to unarchive ${selectedParticipants.length} selected participant(s)?`, type: "info", confirmText: "Unarchive All" });
+    if (!confirmed) return;
     try {
       const res = await fetch("/api/participants/bulk-update", {
         method: "POST",
@@ -507,9 +511,9 @@ export default function ParticipantsPage() {
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / itemsPerPage));
   const paginatedParticipants = filteredParticipants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = async () => {
     if (filteredParticipants.length === 0) {
-      alert("No data available to download.");
+      await showAlert({ title: "No Data", message: "No data available to download.", type: "info" });
       return;
     }
 
@@ -575,14 +579,14 @@ export default function ParticipantsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
-      backgroundImage: 'url(/backgrou.png)', 
+    <div className="min-h-screen flex flex-col bg-gray-50" style={{
+      backgroundImage: 'url(/backgrou.png)',
       backgroundSize: '25%',
       backgroundPosition: 'center',
       backgroundAttachment: 'fixed'
     }}>
       <Header />
-      
+
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
@@ -606,9 +610,8 @@ export default function ParticipantsPage() {
                 <button
                   type="button"
                   onClick={() => setShowArchived(!showArchived)}
-                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${
-                    showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
-                  }`}
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
+                    }`}
                 >
                   <Archive size={18} className="sm:w-5 sm:h-5" />
                   <span>{showArchived ? 'Active List' : `Archived (${participants.filter(p => p.isArchived).length})`}</span>
@@ -636,9 +639,8 @@ export default function ParticipantsPage() {
 
         {/* Message */}
         {message && (
-          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
+          <div className={`mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg text-sm sm:text-base ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
             {message.text}
           </div>
         )}
@@ -657,7 +659,7 @@ export default function ParticipantsPage() {
                 className="w-full pl-10 pr-3 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            
+
             {/* Filter Buttons */}
             <div className="flex gap-2">
               <button
@@ -666,8 +668,8 @@ export default function ParticipantsPage() {
               >
                 <Filter size={18} className="sm:w-5 sm:h-5" />
                 <span>Filters</span>
-                <ChevronDown 
-                  size={16} 
+                <ChevronDown
+                  size={16}
                   className={`transform transition-transform ${showFilters ? 'rotate-180' : ''}`}
                 />
               </button>
@@ -894,7 +896,7 @@ export default function ParticipantsPage() {
               className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
             >
               {/* Main Row */}
-              <div 
+              <div
                 onClick={() => setExpandedParticipant(
                   expandedParticipant.includes(participant._id)
                     ? expandedParticipant.filter(id => id !== participant._id)
@@ -954,15 +956,14 @@ export default function ParticipantsPage() {
                     }}
                     className="xl:hidden p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
                   >
-                    <ChevronDown 
-                      size={18} 
-                      className={`transform transition-transform ${
-                        expandedParticipant.includes(participant._id) ? 'rotate-180' : ''
-                      }`}
+                    <ChevronDown
+                      size={18}
+                      className={`transform transition-transform ${expandedParticipant.includes(participant._id) ? 'rotate-180' : ''
+                        }`}
                     />
                   </button>
                 </div>
-                
+
                 {/* Right Side Stats Group (Wraps cleanly on mobile) */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-gray-700 xl:ml-auto mr-1 sm:mr-2 pl-6 sm:pl-0">
                   {/* Contact Icons */}
@@ -977,7 +978,7 @@ export default function ParticipantsPage() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
                           </svg>
                         </a>
                         <a
@@ -1024,11 +1025,10 @@ export default function ParticipantsPage() {
                   }}
                   className="hidden xl:block p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
                 >
-                  <ChevronDown 
-                    size={18} 
-                    className={`transform transition-transform ${
-                      expandedParticipant.includes(participant._id) ? 'rotate-180' : ''
-                    }`}
+                  <ChevronDown
+                    size={18}
+                    className={`transform transition-transform ${expandedParticipant.includes(participant._id) ? 'rotate-180' : ''
+                      }`}
                   />
                 </button>
               </div>
@@ -1039,18 +1039,18 @@ export default function ParticipantsPage() {
                   <h4 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">
                     The Details Review of Participant:
                   </h4>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Profession:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{participant.profession || 'N/A'}</span>
                     </div>
-                    
+
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Home Town:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{participant.homeTown || 'N/A'}</span>
                     </div>
-                    
+
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Email:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800 break-all">{participant.email}</span>
@@ -1065,7 +1065,6 @@ export default function ParticipantsPage() {
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Connected to Temple:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{participant.connectedToTemple || 'N/A'}</span>
                     </div>
-
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Number of Rounds:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">{participant.numberOfRounds || 0}</span>
@@ -1074,7 +1073,7 @@ export default function ParticipantsPage() {
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Registered By:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">
-                        {participant.registeredBy && participant.registeredBy !== 'unassigned' ? (volunteerNames[participant.registeredBy] || 'N/A') : 'N/A'}
+                        {participant.registeredBy || 'N/A'}
                       </span>
                     </div>
                   </div>
