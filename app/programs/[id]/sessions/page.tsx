@@ -248,7 +248,7 @@ export default function SessionsPage() {
             <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-gray-600 mb-2">No Sessions Yet</h3>
             <p className="text-gray-500">
-              Sessions will appear here once you create follow-up lists
+              Please create a session.
             </p>
           </div>
         ) : (() => {
