@@ -279,7 +279,14 @@ export default function OutreachPage() {
                   className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
                 >
                   {/* Main Row */}
-                  <div className="px-4 lg:px-6 py-3 lg:py-4 hover:bg-yellow-100 transition-colors">
+                  <div 
+                    onClick={() => setExpandedOutreach(
+                      expandedOutreach.includes(contact._id)
+                        ? expandedOutreach.filter(id => id !== contact._id)
+                        : [...expandedOutreach, contact._id]
+                    )}
+                    className="px-4 lg:px-6 py-3 lg:py-4 hover:bg-yellow-100 transition-colors cursor-pointer"
+                  >
                     {/* Mobile Layout */}
                     <div className="lg:hidden space-y-2">
                       {/* Name and expand button */}
@@ -322,7 +329,7 @@ export default function OutreachPage() {
                               </a>
                               <a
                                 href={`tel:${contact.phone}`}
-                                className="text-red-600 hover:text-red-700 flex-shrink-0"
+                                className="text-red-600 hover:text-red-700 flex-shrink-0 cursor-pointer"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <Phone size={18} />
@@ -371,7 +378,7 @@ export default function OutreachPage() {
                               href={`https://wa.me/${contact.phone.replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-green-600 hover:text-green-700"
+                              className="text-green-600 hover:text-green-700 cursor-pointer"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -380,7 +387,7 @@ export default function OutreachPage() {
                             </a>
                             <a
                               href={`tel:${contact.phone}`}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 hover:text-red-700 cursor-pointer"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Phone size={18} />

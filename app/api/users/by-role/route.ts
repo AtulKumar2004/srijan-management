@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const role = searchParams.get("role");
     const programId = searchParams.get("programId");
+    const includeArchived = searchParams.get("includeArchived");
 
     if (!role) {
       return NextResponse.json(
@@ -18,18 +19,44 @@ export async function GET(req: NextRequest) {
     }
 
     // Build query
-    const query: any = { role };
+    const query: any = {};
+    if (role && role !== "all") {
+      if (role.includes(",")) {
+        query.role = { $in: role.split(",") };
+      } else {
+        query.role = role;
+      }
+    }
     
     // If programId is provided, filter users enrolled in that program
     if (programId) {
       query.programs = programId;
     }
+    if (includeArchived !== "true") {
+      query.isArchived = { $ne: true };
+    }
 
     // Fetch users with active filter for admins
-    const users = await User.find(query)
+    let users = await User.find(query)
       .select("-password")
       .sort({ createdAt: -1 })
       .lean();
+
+    if (role === "volunteer" && Array.isArray(users)) {
+      users = await Promise.all(
+        users.map(async (v: any) => {
+          const count = await User.countDocuments({
+            role: { $in: ["participant", "volunteer"] },
+            isArchived: { $ne: true },
+            $or: [{ handledBy: String(v._id) }, { handledBy: v._id }],
+          });
+          return {
+            ...v,
+            participantsUnder: count,
+          };
+        })
+      );
+    }
 
     return NextResponse.json({ 
       users: users || [],

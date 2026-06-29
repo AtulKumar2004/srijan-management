@@ -5,6 +5,8 @@ import FollowUp from "@/models/FollowUp";
 import Attendance from "@/models/Attendance";
 import User from "@/models/User";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import { TokenPayload } from "@/types/TokenPayload";
 
 // GET /api/programs/[id]/sessions - Get all sessions for a program
 export async function GET(
@@ -16,102 +18,53 @@ export async function GET(
 
     const { id } = await params;
 
-    // Get all unique followup dates for this program
-    const followUpDates = await FollowUp.aggregate([
-      {
-        $match: {
-          program: new mongoose.Types.ObjectId(id),
-          isDeleted: false
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$followUpDate" }
-          },
-          followUpDate: { $first: "$followUpDate" }
-        }
-      }
-    ]);
+    // Clean up any old auto-created dummy sessions from previous followups sync logic
+    await Session.deleteMany({
+      programId: id,
+      sessionTopic: "Session",
+      speakerName: "To be updated"
+    });
 
-    // Get existing sessions
+    // Get existing sessions created explicitly by admins
     let sessions = await Session.find({
       programId: id,
       isDeleted: false
     }).lean();
 
-    const existingSessionDates = new Set(
-      sessions.map(s => new Date(s.sessionDate).toISOString().split('T')[0])
-    );
-
-    // Create sessions for followup dates that don't have sessions
-    const newSessions = [];
-    for (const { followUpDate } of followUpDates) {
-      const dateStr = new Date(followUpDate).toISOString().split('T')[0];
-      if (!existingSessionDates.has(dateStr)) {
-        // Normalize the date to start of day
-        const date = new Date(followUpDate);
-        const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
-        
-        newSessions.push({
-          programId: id,
-          sessionDate: normalizedDate,
-          sessionTopic: "Session",
-          speakerName: "To be updated",
-          isDeleted: false
-        });
-      }
-    }
-
-    // Insert new sessions if any
-    if (newSessions.length > 0) {
-      await Session.insertMany(newSessions);
-      
-      // Fetch all sessions again
-      sessions = await Session.find({
-        programId: id,
-        isDeleted: false
-      }).lean();
-    }
-
     // Sort by date (most recent first)
     sessions.sort((a, b) => new Date(b.sessionDate).getTime() - new Date(a.sessionDate).getTime());
 
-    // Compute attendance summary per session date for list view.
-    const totalStudents = await User.countDocuments({
+    // Compute attendance summary per session date matching exact level.
+    const allProgramStudents = await User.find({
       programs: id,
       role: { $in: ["volunteer", "participant"] }
-    });
+    }).select("_id level").lean();
 
-    const presentByDate = await Attendance.aggregate([
-      {
-        $match: {
-          programId: new mongoose.Types.ObjectId(id),
-          status: "present"
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: "%Y-%m-%d", date: "$date" }
-          },
-          presentCount: { $sum: 1 }
-        }
-      }
-    ]);
-
-    const presentCountMap = new Map(
-      presentByDate.map((item) => [item._id, item.presentCount])
-    );
+    const allPresentAttendance = await Attendance.find({
+      programId: id,
+      status: "present"
+    }).select("participantId date").lean();
 
     const sessionsWithAttendance = sessions.map((session: any) => {
-      const dateKey = new Date(session.sessionDate).toISOString().split("T")[0];
-      const presentCount = presentCountMap.get(dateKey) || 0;
+      const sessionLevel = session.level !== undefined && session.level !== null ? Number(session.level) : 1;
+      const eligibleStudentIds = new Set(
+        allProgramStudents.filter(s => Number(s.level || 1) === sessionLevel).map(s => s._id.toString())
+      );
+      const eligibleCount = eligibleStudentIds.size;
+      const sessionDateStr = new Date(session.sessionDate).toISOString().split("T")[0];
+
+      const presentForSession = allPresentAttendance.filter(a => {
+        const aDateStr = new Date(a.date).toISOString().split("T")[0];
+        return aDateStr === sessionDateStr && eligibleStudentIds.has(a.participantId.toString());
+      });
+      const presentCount = new Set(presentForSession.map(a => a.participantId.toString())).size;
 
       return {
         ...session,
+        level: sessionLevel,
+        description: session.description || "",
         presentCount,
-        absentCount: Math.max(totalStudents - presentCount, 0)
+        absentCount: Math.max(eligibleCount - presentCount, 0)
       };
     });
 
@@ -123,6 +76,51 @@ export async function GET(
     console.error("GET_SESSIONS_ERROR:", error);
     return NextResponse.json(
       { error: "Failed to fetch sessions", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/programs/[id]/sessions - Create a new session
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await connectDB();
+
+    const token = req.headers.get("cookie")?.split("token=")[1]?.split(";")[0];
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    if (decoded.role !== "admin") {
+      return NextResponse.json({ error: "Only admins can create sessions" }, { status: 403 });
+    }
+
+    const { id } = await params;
+    const body = await req.json();
+    const { sessionTopic, sessionDate, speakerName, level, description } = body;
+
+    if (!sessionDate || !sessionTopic) {
+      return NextResponse.json({ error: "Date and topic are required" }, { status: 400 });
+    }
+
+    const newSession = await Session.create({
+      programId: id,
+      sessionDate: new Date(sessionDate),
+      sessionTopic,
+      speakerName: speakerName || "To be updated",
+      level: level ? Number(level) : 1,
+      description: description || "",
+      isDeleted: false
+    });
+
+    return NextResponse.json({ success: true, session: newSession }, { status: 201 });
+  } catch (error: any) {
+    console.error("POST_SESSION_ERROR:", error);
+    return NextResponse.json(
+      { error: "Failed to create session", details: error.message },
       { status: 500 }
     );
   }

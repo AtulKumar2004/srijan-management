@@ -5,6 +5,8 @@ export interface ISession extends Document {
   sessionDate: Date;
   sessionTopic: string;
   speakerName: string;
+  description?: string;
+  level?: number;
   createdBy?: mongoose.Types.ObjectId;
   isDeleted: boolean;
   createdAt: Date;
@@ -31,6 +33,15 @@ const SessionSchema = new Schema<ISession>(
       type: String,
       required: true,
       trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    level: {
+      type: Number,
+      default: 1,
     },
     createdBy: {
       type: Schema.Types.ObjectId,

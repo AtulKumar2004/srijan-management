@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
         participantsUnder: user.participantsUnder,
         programs: user.programs,
         isActive: user.isActive,
+        isArchived: Boolean(user.isArchived),
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       }

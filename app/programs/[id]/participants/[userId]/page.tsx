@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import ProfileRemarkTab from "@/components/ProfileRemarkTab";
+import ProfileAttendanceTab from "@/components/ProfileAttendanceTab";
 import { Save, X, Calendar, Mail, Phone, MapPin, Briefcase, User, Award, Target } from "lucide-react";
 
 interface UserData {
@@ -55,16 +57,29 @@ function ParticipantDetailContent() {
   const [handledByName, setHandledByName] = useState<string>('N/A');
   const [volunteers, setVolunteers] = useState<VolunteerInfo[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'profile' | 'remark' | 'attendance'>('profile');
+
+  const isSelf = Boolean(currentUserId && userId && String(currentUserId) === String(userId));
+  const canViewRemarkTab = (!isSelf && currentUserRole === 'volunteer') || currentUserRole === 'admin';
 
   useEffect(() => {
     fetchCurrentUser();
     fetchUser();
     fetchVolunteers();
-  }, [userId]);
+    setIsEditing(searchParams.get('edit') === 'true');
+  }, [userId, searchParams]);
 
   useEffect(() => {
-    setIsEditing(isEditMode);
-  }, [isEditMode]);
+    if (user && currentUserRole && currentUserId) {
+      const allowed = currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user.handledBy || user.handledBy === 'unassigned' || user.handledBy === currentUserId)) || userId === currentUserId;
+      if (!allowed) {
+        setIsEditing(false);
+      } else {
+        setIsEditing(searchParams.get('edit') === 'true');
+      }
+    }
+  }, [user, currentUserRole, currentUserId, userId, searchParams]);
 
   useEffect(() => {
     if (!toast) return;
@@ -78,6 +93,7 @@ function ParticipantDetailContent() {
       if (res.ok) {
         const data = await res.json();
         setCurrentUserRole(data.user?.role || '');
+        setCurrentUserId(data.user?._id || '');
       }
     } catch (error) {
       console.error("Error fetching current user:", error);
@@ -108,8 +124,10 @@ function ParticipantDetailContent() {
         if (data.user.registeredBy) {
           fetchVolunteerName(data.user.registeredBy, setRegisteredByName);
         }
-        if (data.user.handledBy) {
+        if (data.user.handledBy && data.user.handledBy !== 'unassigned') {
           fetchVolunteerName(data.user.handledBy, setHandledByName);
+        } else {
+          setHandledByName('N/A');
         }
       } else {
         setMessage({ type: 'error', text: 'Failed to fetch user details' });
@@ -171,7 +189,7 @@ function ParticipantDetailContent() {
 
       if (res.status === 202) {
         setMessage({ type: 'success', text: data.message || 'Approval request sent to admin.' });
-        setToast({ type: 'success', text: 'Promotion request sent to program admin for approval.' });
+        setToast({ type: 'success', text: data.message || 'Request sent to program admin for approval.' });
         await fetchUser();
         setIsEditing(false);
         setTimeout(() => setMessage(null), 4000);
@@ -224,6 +242,9 @@ function ParticipantDetailContent() {
     );
   }
 
+  const canEditHandledBy = currentUserId !== userId && (currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned')));
+  const canEditAdministrative = currentUserRole === 'admin' || (currentUserId !== userId && currentUserRole === 'volunteer');
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
       backgroundImage: 'url(/backgrou.png)', 
@@ -258,6 +279,45 @@ function ParticipantDetailContent() {
               </button>
             </div>
           </div>
+
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-gray-200 mt-6 -mb-4 sm:-mb-6 gap-6 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'profile'
+                  ? 'border-[#A65353] text-[#A65353]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Profile
+            </button>
+            {canViewRemarkTab && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('remark')}
+                className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'remark'
+                    ? 'border-[#A65353] text-[#A65353]'
+                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                }`}
+              >
+                Remark
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('attendance')}
+              className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'attendance'
+                  ? 'border-[#A65353] text-[#A65353]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Attendance
+            </button>
+          </div>
         </div>
 
         {/* Message */}
@@ -269,7 +329,15 @@ function ParticipantDetailContent() {
           </div>
         )}
 
-        {/* Form */}
+        {activeTab === 'remark' && (
+          <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
+        )}
+
+        {activeTab === 'attendance' && (
+          <ProfileAttendanceTab userId={userId} programId={programId} />
+        )}
+
+        {activeTab === 'profile' && (
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           {/* Personal Information */}
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
@@ -278,34 +346,36 @@ function ParticipantDetailContent() {
                 <User size={20} className="sm:w-6 sm:h-6" />
                 Personal Information
               </h2>
-              {!isEditing ? (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="w-full cursor-pointer sm:w-auto px-4 py-2 bg-[#A65353] text-white rounded-lg transition-colors text-sm sm:text-base"
-                >
-                  Edit
-                </button>
-              ) : (
-                <div className="flex gap-2 w-full sm:w-auto">
+              {(currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned' || user?.handledBy === currentUserId)) || userId === currentUserId) && (
+                !isEditing ? (
                   <button
                     type="button"
-                    onClick={handleCancel}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                    onClick={() => setIsEditing(true)}
+                    className="w-full cursor-pointer sm:w-auto px-4 py-2 bg-[#A65353] text-white rounded-lg transition-colors text-sm sm:text-base"
                   >
-                    <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-                    <span className="hidden sm:inline">Cancel</span>
-                    <span className="sm:hidden">Cancel</span>
+                    Edit
                   </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
-                  >
-                    <Save size={16} className="sm:w-[18px] sm:h-[18px]" />
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
+                ) : (
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                    >
+                      <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+                      <span className="hidden sm:inline">Cancel</span>
+                      <span className="sm:hidden">Cancel</span>
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
+                    >
+                      <Save size={16} className="sm:w-[18px] sm:h-[18px]" />
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                )
               )}
             </div>
 
@@ -367,6 +437,27 @@ function ParticipantDetailContent() {
                   <p className="text-sm sm:text-base text-gray-800 py-2">{user.phone || 'N/A'}</p>
                 )}
               </div>
+
+              {/* New Password */}
+              {currentUserId === userId && (
+                <div>
+                  <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
+                    New Password (Optional)
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="password"
+                      name="password"
+                      value={(formData as any).password || ''}
+                      onChange={handleInputChange}
+                      placeholder="Leave blank to keep current password"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  ) : (
+                    <p className="text-gray-400 py-2">••••••••</p>
+                  )}
+                </div>
+              )}
 
               {/* Gender */}
               <div>
@@ -443,32 +534,7 @@ function ParticipantDetailContent() {
                 )}
               </div>
 
-              {/* Active Status */}
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
-                  Status
-                </label>
-                {isEditing ? (
-                  <label className="flex items-center gap-2 py-2">
-                    <input
-                      type="checkbox"
-                      name="isActive"
-                      checked={formData.isActive ?? true}
-                      onChange={handleCheckboxChange}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm sm:text-base text-gray-700">Active</span>
-                  </label>
-                ) : (
-                  <p className="py-2">
-                    <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-                      user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {user.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </p>
-                )}
-              </div>
+
 
               {/* Marital Status */}
               <div>
@@ -587,17 +653,22 @@ function ParticipantDetailContent() {
               {/* Level */}
               <div>
                 <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
-                  Level
+                  Level {formData.role === 'volunteer' && '*'}
                 </label>
-                {isEditing ? (
-                  <input
-                    type="number"
+                {isEditing && canEditAdministrative ? (
+                  <select
                     name="level"
                     value={formData.level || ''}
                     onChange={handleInputChange}
-                    min="0"
+                    required={formData.role === 'volunteer'}
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  >
+                    <option value="">Select Level</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
                 ) : (
                   <p className="text-sm sm:text-base text-gray-800 py-2">{user.level ? `Level ${user.level}` : 'N/A'}</p>
                 )}
@@ -606,13 +677,14 @@ function ParticipantDetailContent() {
               {/* Grade */}
               <div>
                 <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
-                  Grade
+                  Grade {formData.role === 'volunteer' && '*'}
                 </label>
-                {isEditing ? (
+                {isEditing && canEditAdministrative ? (
                   <select
                     name="grade"
                     value={formData.grade || ''}
                     onChange={handleInputChange}
+                    required={formData.role === 'volunteer'}
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select Grade</option>
@@ -679,7 +751,7 @@ function ParticipantDetailContent() {
                     <option value="">Select Volunteer</option>
                     {volunteers.map((volunteer) => (
                       <option key={volunteer._id} value={volunteer._id}>
-                        {volunteer.name} ({volunteer.participantsUnder || 0})
+                        {volunteer.name} ({volunteer.participantsUnder || 0} mentoring)
                       </option>
                     ))}
                   </select>
@@ -688,12 +760,12 @@ function ParticipantDetailContent() {
                 )}
               </div>
 
-              {/* Handled By */}
+              {/* Mentor */}
               <div>
                 <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
-                  Handled By
+                  Mentor
                 </label>
-                {isEditing ? (
+                {isEditing && canEditHandledBy ? (
                   <select
                     name="handledBy"
                     value={formData.handledBy || ''}
@@ -703,10 +775,18 @@ function ParticipantDetailContent() {
                     <option value="">Select Volunteer</option>
                     {volunteers.map((volunteer) => (
                       <option key={volunteer._id} value={volunteer._id}>
-                        {volunteer.name} ({volunteer.participantsUnder || 0})
+                        {volunteer.name} ({volunteer.participantsUnder || 0} mentoring)
                       </option>
                     ))}
                   </select>
+                ) : user?.handledBy && user.handledBy !== 'unassigned' && handledByName !== 'N/A' && !(currentUserRole === 'participant' && !isSelf) ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/programs/${programId}/volunteers/${user.handledBy}`)}
+                    className="text-sm sm:text-base text-[#A65353] font-bold hover:underline cursor-pointer py-2 block text-left"
+                  >
+                    {handledByName}
+                  </button>
                 ) : (
                   <p className="text-sm sm:text-base text-gray-800 py-2">{handledByName}</p>
                 )}
@@ -719,27 +799,6 @@ function ParticipantDetailContent() {
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Record Information</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              {/* Role */}
-              <div>
-                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
-                  Role
-                </label>
-                {isEditing ? (
-                  <select
-                    name="role"
-                    value={formData.role || ''}
-                    onChange={handleInputChange}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {(currentUserRole === "admin" || currentUserRole === "volunteer") && <option value="volunteer">Volunteer</option>}
-                    <option value="participant">Participant</option>
-                    <option value="guest">Guest</option>
-                  </select>
-                ) : (
-                  <p className="text-sm sm:text-base text-gray-800 py-2 capitalize">{user.role}</p>
-                )}
-              </div>
-              
               <div>
                 <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
                   Created At
@@ -760,6 +819,7 @@ function ParticipantDetailContent() {
             </div>
           </div>
         </form>
+        )}
       </main>
 
       <Footer />

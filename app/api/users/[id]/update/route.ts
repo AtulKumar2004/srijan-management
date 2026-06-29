@@ -3,8 +3,11 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Program from "@/models/Program";
 import RoleChangeRequest from "@/models/RoleChangeRequest";
+import MentorshipChangeRequest from "@/models/MentorshipChangeRequest";
 import { sendRoleChangeRequestEmail } from "@/lib/sendRoleChangeRequestEmail";
+import { sendMentorshipChangeRequestEmail } from "@/lib/sendMentorshipChangeRequestEmail";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 const ROLE_RANK: any = {
   admin: 3,
@@ -14,23 +17,32 @@ const ROLE_RANK: any = {
   outreach: -1
 };
 
-function canEdit(actorRole: string, targetRole: string, actorId: string, targetId: string) {
+function canEdit(actorRole: string, targetRole: string, actorId: string, targetId: string, targetHandledBy?: string) {
   // USERS CAN ALWAYS EDIT THEIR OWN PROFILE
-  if (actorId === targetId) return true;
+  if (String(actorId) === String(targetId)) return true;
 
   // Admin can edit anyone
   if (actorRole === "admin") return true;
 
   // Volunteer editing someone ELSE
   if (actorRole === "volunteer") {
-    // volunteer cannot edit admins or other volunteers
-    if (targetRole === "admin" || targetRole === "volunteer") return false;
+    const isMentee = Boolean(targetHandledBy && String(targetHandledBy) === String(actorId));
+    const isUnassigned = !targetHandledBy || targetHandledBy === "unassigned";
 
-    // guest / participant / outreach → allowed
-    return true;
+    if (targetRole === "volunteer") {
+      // Volunteer editing another volunteer: allowed ONLY if target is their mentee
+      return isMentee;
+    }
+
+    if (targetRole === "participant") {
+      // Volunteer editing participant: allowed if mentee OR unassigned
+      return isMentee || isUnassigned;
+    }
+
+    return false;
   }
 
-  // participant or guest → cannot edit others
+  // participant or guest -> cannot edit others
   return false;
 }
 
@@ -54,7 +66,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     const targetRole = targetUser.role;
 
     // Permission check
-    const allowed = canEdit(actorRole, targetRole, actorId, targetUserId);
+    const allowed = canEdit(actorRole, targetRole, actorId, targetUserId, targetUser.handledBy);
     if (!allowed) {
       return NextResponse.json({ error: "Not allowed to edit this user" }, { status: 403 });
     }
@@ -70,39 +82,63 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
       "connectedToTemple", "numberOfRounds", "level", 
       "grade", "howDidYouHearAboutUs", "isActive",
       "maritalStatus", "registeredBy", "handledBy",
-      "participantsUnder"
+      "participantsUnder", "isArchived"
     ];
 
+    const initialRole = targetUser.role;
+
     // Role change validation
-    if (body.role && body.role !== targetUser.role) {
+    if (body.role && body.role !== initialRole) {
+      if (initialRole === "guest" && actorRole !== "admin") {
+        return NextResponse.json({
+          error: "Only admins can change the role of newly registered guests"
+        }, { status: 403 });
+      }
+
       // Admin can change anyone's role to anything
       if (actorRole === "admin") {
         targetUser.role = body.role;
-      } 
-      // Volunteer can change participant/guest/outreach roles (but not to admin)
-      else if (actorRole === "volunteer") {
-        const allowedTargetRoles = ["participant", "guest", "outreach"];
-        const allowedNewRoles = ["participant", "guest", "volunteer"];
 
-        if (!(allowedTargetRoles.includes(targetRole) && allowedNewRoles.includes(body.role))) {
+        // When admin edits guest's role to volunteer or participant, enroll in selected program
+        if (initialRole === "guest" && (body.role === "volunteer" || body.role === "participant")) {
+          if (body.programId) {
+            const existingPrograms = targetUser.programs || [];
+            targetUser.programs = Array.from(new Set([...existingPrograms, body.programId]));
+          } else {
+            const adminPrograms = await Program.find({ createdBy: actorId }).select("_id");
+            if (adminPrograms && adminPrograms.length > 0) {
+              const programIds = adminPrograms.map((p: any) => String(p._id));
+              const existingPrograms = targetUser.programs || [];
+              targetUser.programs = Array.from(new Set([...existingPrograms, ...programIds]));
+            }
+          }
+        }
+      } 
+      // Volunteer can change mentee/unassigned user roles (except to admin)
+      else if (actorRole === "volunteer") {
+        if (body.role === "admin") {
           return NextResponse.json({
             error: "Volunteers cannot assign admin role"
           }, { status: 403 });
         }
 
-        // Volunteer -> participant to volunteer promotion requires program admin approval.
-        if (targetRole === "participant" && body.role === "volunteer") {
+        // Rule 2: A volunteer can change the role of his mentees but it must be approved by the admin.
+        if (body.role && body.role !== targetRole) {
+          if (body.role === "volunteer") {
+            const finalLevel = body.level !== undefined ? body.level : targetUser.level;
+            const finalGrade = body.grade !== undefined ? body.grade : targetUser.grade;
+            if (finalLevel === undefined || finalLevel === null || String(finalLevel).trim() === "" ||
+                finalGrade === undefined || finalGrade === null || String(finalGrade).trim() === "") {
+              return NextResponse.json({
+                error: "Level and Grade are required when assigning Volunteer role"
+              }, { status: 400 });
+            }
+          }
           const programId = body.programId || targetUser.programs?.[0];
 
           if (!programId) {
             return NextResponse.json({
-              error: "Participant is not mapped to a program. Cannot request volunteer promotion."
-            }, { status: 400 });
-          }
-
-          if (targetUser.programs?.length && !targetUser.programs.includes(programId)) {
-            return NextResponse.json({
-              error: "Selected program does not belong to this participant."
+              error: "User is not mapped to a program. Cannot request role change."
             }, { status: 400 });
           }
 
@@ -117,13 +153,12 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
             participant: targetUserId,
             requestedBy: actorId,
             program: programId,
-            requestedRole: "volunteer",
             status: "pending",
           });
 
           if (existingPending) {
             return NextResponse.json({
-              error: "A pending approval request already exists for this participant.",
+              error: "A pending approval request already exists for this user.",
               approvalRequired: true,
               requestId: existingPending._id,
             }, { status: 409 });
@@ -132,7 +167,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
           const request = await RoleChangeRequest.create({
             participant: targetUserId,
             currentRole: targetRole,
-            requestedRole: "volunteer",
+            requestedRole: body.role,
             requestedBy: actorId,
             program: programId,
             programAdmin: program.createdBy._id,
@@ -151,14 +186,14 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
             volunteerName: volunteer?.name || "Volunteer",
             programName: program.name,
             requestId: roleApprovalRequestId,
+            currentRole: targetRole,
+            requestedRole: body.role,
           });
 
           roleApprovalEmailSent = Boolean(emailResult.ok);
 
           // Keep current role unchanged until admin approval.
           delete body.role;
-        } else {
-          targetUser.role = body.role;
         }
       } else {
         return NextResponse.json({ 
@@ -167,8 +202,105 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
       }
     }
 
+    let mentorshipApprovalRequestId: string | null = null;
+    let mentorshipApprovalEmailSent = false;
+
+    if (actorRole === "volunteer" && targetUserId !== actorId) {
+      delete body.participantsUnder;
+      delete body.mentoredParticipants;
+      if (targetUser.handledBy && String(targetUser.handledBy) === String(actorId)) {
+        delete body.handledBy;
+      }
+    }
+
+    if (actorRole === "volunteer" && !targetUser.handledBy && body.handledBy !== undefined && String(body.handledBy).trim() !== "") {
+        const programId = body.programId || targetUser.programs?.[0];
+
+        if (!programId) {
+          return NextResponse.json({
+            error: "Participant is not mapped to a program. Cannot request mentor assignment."
+          }, { status: 400 });
+        }
+
+        const program: any = await Program.findById(programId).populate("createdBy", "_id name email");
+        if (!program || !program.createdBy) {
+          return NextResponse.json({
+            error: "Program admin not found for mentor assignment approval request"
+          }, { status: 404 });
+        }
+
+        const existingPending = await MentorshipChangeRequest.findOne({
+          participant: targetUserId,
+          requestedBy: actorId,
+          program: programId,
+          status: "pending",
+        });
+
+        if (existingPending) {
+          return NextResponse.json({
+            error: "A pending mentor assignment request already exists for this participant.",
+            approvalRequired: true,
+            requestId: existingPending._id,
+          }, { status: 409 });
+        }
+
+        const mRequest = await MentorshipChangeRequest.create({
+          participant: targetUserId,
+          requestedHandledBy: body.handledBy,
+          requestedBy: actorId,
+          program: programId,
+          programAdmin: program.createdBy._id,
+          status: "pending",
+        });
+
+        mentorshipApprovalRequestId = String(mRequest._id);
+
+        const volunteer = await User.findById(actorId).select("name");
+        const emailResult = await sendMentorshipChangeRequestEmail({
+          adminEmail: program.createdBy.email,
+          adminName: program.createdBy.name,
+          participantName: targetUser.name,
+          participantEmail: targetUser.email,
+          participantPhone: targetUser.phone,
+          volunteerName: volunteer?.name || "Volunteer",
+          programName: program.name,
+          requestId: mentorshipApprovalRequestId,
+        });
+
+        mentorshipApprovalEmailSent = Boolean(emailResult.ok);
+
+        delete body.handledBy;
+      }
+
+    let allowedFields = editableFields;
+
+    if (actorId === targetUserId && actorRole !== "admin") {
+      delete body.role;
+      allowedFields = editableFields.filter(f => !["role", "level", "grade", "handledBy", "registeredBy", "participantsUnder"].includes(f));
+    }
+
+    if (actorId === targetUserId && body.password && typeof body.password === "string" && body.password.trim() !== "") {
+      const hashed = await bcrypt.hash(body.password, 10);
+      targetUser.password = hashed;
+    }
+
+    // Enforce email and phone uniqueness when updating
+    if (body.email && body.email !== targetUser.email) {
+      const dupEmail = await User.findOne({ email: body.email.toLowerCase(), _id: { $ne: targetUserId } });
+      if (dupEmail) {
+        return NextResponse.json({ error: "A user with this email address already exists. Email must be unique." }, { status: 400 });
+      }
+    }
+    if (body.phone && body.phone !== targetUser.phone) {
+      const cleanPhone = String(body.phone).replace(/\D/g, "");
+      const dupPhone = await User.findOne({ phone: { $in: [body.phone, cleanPhone] }, _id: { $ne: targetUserId } });
+      if (dupPhone) {
+        return NextResponse.json({ error: "A user with this phone number already exists. Phone number must be unique." }, { status: 400 });
+      }
+    }
+
     // Apply allowed fields only
-    editableFields.forEach((field) => {
+    allowedFields.forEach((field) => {
       if (body[field] !== undefined) {
         targetUser[field] = body[field];
       }
@@ -179,12 +311,13 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     const userObj = targetUser.toObject();
     delete userObj.password;
 
-    if (roleApprovalRequestId) {
+    if (roleApprovalRequestId || mentorshipApprovalRequestId) {
+      const msgs = [];
+      if (roleApprovalRequestId) msgs.push("Role change request sent to admin for approval.");
+      if (mentorshipApprovalRequestId) msgs.push("Mentor assignment request sent to admin for approval.");
       return NextResponse.json({
-        message: "Participant details saved. Volunteer role change request sent to the program admin for approval.",
+        message: `Changes saved. ${msgs.join(" ")}`.trim(),
         approvalRequired: true,
-        requestId: roleApprovalRequestId,
-        emailSent: roleApprovalEmailSent,
         user: userObj,
       }, { status: 202 });
     }

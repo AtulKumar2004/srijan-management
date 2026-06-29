@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, Users, UserPlus, Phone, Filter, ChevronDown, Save, RefreshCw } from "lucide-react";
+import Pagination from "@/components/Pagination";
+import { Calendar, Users, UserPlus, Phone, Filter, ChevronDown, ChevronLeft, ChevronRight, Save, RefreshCw, Search, Building2 } from "lucide-react";
 
 interface OutreachContact {
   _id: string;
@@ -37,6 +38,11 @@ interface Volunteer {
   email: string;
 }
 
+interface Program {
+  _id: string;
+  name: string;
+}
+
 export default function OutreachFollowUpsPage() {
   const router = useRouter();
   
@@ -53,6 +59,18 @@ export default function OutreachFollowUpsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [adminName, setAdminName] = useState<string>("");
 
+  // Search & Pagination state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [volunteerSearchQuery, setVolunteerSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Program & Session Calendar state
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>("");
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [showCalendarPopup, setShowCalendarPopup] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+
   const [editingFollowUp, setEditingFollowUp] = useState<{
     contactId: string;
     status: string;
@@ -63,16 +81,74 @@ export default function OutreachFollowUpsPage() {
 
   useEffect(() => {
     checkAuthAndFetch();
+    fetchPrograms();
   }, []);
+
+  const fetchPrograms = async () => {
+    try {
+      const res = await fetch("/api/programs/all");
+      if (res.ok) {
+        const data = await res.json();
+        const progs = data.programs || [];
+        setPrograms(progs);
+        if (progs.length > 0) {
+          setSelectedProgramId(progs[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch programs:", err);
+    }
+  };
+
+  useEffect(() => {
+    const fetchSessionDates = async () => {
+      if (!selectedProgramId) return;
+      try {
+        const res = await fetch(`/api/programs/${selectedProgramId}/sessions`);
+        if (res.ok) {
+          const data = await res.json();
+          const dates: string[] = Array.from(
+            new Set(
+              (data.sessions || []).map((s: any) =>
+                new Date(s.sessionDate).toISOString().split("T")[0]
+              )
+            )
+          );
+          setAvailableDates(dates);
+          if (dates.length > 0) {
+            if (!dates.includes(selectedDate)) {
+              setSelectedDate(dates[0]);
+            }
+            const targetMonthDate = dates.includes(selectedDate) ? selectedDate : dates[0];
+            setCalendarMonth(new Date(targetMonthDate));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch session dates:", err);
+      }
+    };
+    fetchSessionDates();
+    if (currentUser && adminName) {
+      fetchVolunteers(adminName, currentUser, selectedProgramId);
+    }
+  }, [selectedProgramId, currentUser, adminName]);
 
   useEffect(() => {
     if (adminName) {
-      // Reset filters when date changes
       setSelectedVolunteerId(null);
       setFilterStatus("");
       fetchContacts(adminName);
+
+      const interval = setInterval(() => {
+        fetchContacts(adminName, true);
+      }, 10000);
+      return () => clearInterval(interval);
     }
   }, [selectedDate, adminName]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDate, filterStatus, selectedVolunteerId, searchQuery, selectedProgramId]);
 
   const checkAuthAndFetch = async () => {
     try {
@@ -90,22 +166,18 @@ export default function OutreachFollowUpsPage() {
 
       setCurrentUser(authData.user);
 
-      // If user is admin, use their name. If volunteer, we need to get their admin's name from programs
       let adminNameToUse = "";
       if (authData.user.role === "admin") {
         adminNameToUse = authData.user.name;
         setAdminName(adminNameToUse);
         await fetchContacts(adminNameToUse);
       } else {
-        // For volunteers, use their programs array to find their admin
         if (authData.user.programs && authData.user.programs.length > 0) {
-          // Get the first program to find the admin
           const programId = authData.user.programs[0];
           const programRes = await fetch(`/api/programs/${programId}`);
           if (programRes.ok) {
             const programData = await programRes.json();
             if (programData.program && programData.program.createdBy) {
-              // Get the admin who created this program
               const adminId = typeof programData.program.createdBy === 'object' 
                 ? programData.program.createdBy._id 
                 : programData.program.createdBy;
@@ -122,51 +194,55 @@ export default function OutreachFollowUpsPage() {
         }
       }
       
-      // Fetch volunteers after currentUser is set
-      await fetchVolunteers(adminNameToUse, authData.user);
+      await fetchVolunteers(adminNameToUse, authData.user, selectedProgramId);
     } catch (error) {
       console.error("Error checking auth:", error);
       router.push("/login");
     }
   };
 
-  const fetchContacts = async (adminNameParam?: string) => {
-    setLoading(true);
-    setContacts([]); // Clear old data first
+  const fetchContacts = async (adminToFetch?: string, silent = false) => {
+    const targetAdmin = adminToFetch || adminName;
+    if (!targetAdmin) return;
+    
+    if (!silent) setLoading(true);
     try {
-      const nameToUse = adminNameParam || adminName;
-      const response = await fetch(`/api/outreach/followups/by-admin?adminName=${nameToUse}&date=${selectedDate}`);
+      const url = `/api/outreach/followups/by-admin?adminName=${encodeURIComponent(targetAdmin)}&followUpDate=${selectedDate}`;
+
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched contacts for date:', selectedDate, 'Count:', data.contacts?.length || 0);
         setContacts(data.contacts || []);
-      } else {
-        console.error('Failed to fetch contacts:', response.status);
-        setContacts([]);
       }
     } catch (error) {
       console.error("Error fetching contacts:", error);
-      setContacts([]);
+      if (!silent) setMessage({ type: 'error', text: 'Failed to load followups' });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const fetchVolunteers = async (adminNameParam?: string, user?: any) => {
+  const fetchVolunteers = async (adminToFetch?: string, userObj?: any, progId?: string) => {
+    const targetAdmin = adminToFetch || adminName;
+    const user = userObj || currentUser;
+    const targetProg = progId !== undefined ? progId : selectedProgramId;
+    if (!targetAdmin || !user) return;
+
     try {
-      const userToUse = user || currentUser;
-      
-      // If user is admin, fetch by admin name. If volunteer, fetch from their programs
-      if (userToUse?.role === "admin") {
-        const nameToUse = adminNameParam || adminName;
-        const response = await fetch(`/api/outreach/followups/volunteers-by-admin?adminName=${nameToUse}`);
-        if (response.ok) {
-          const data = await response.json();
-          setVolunteers(data.volunteers || []);
+      if (user.role === "volunteer") {
+        if (user.programs && user.programs.length > 0) {
+          const programsParam = user.programs.join(',');
+          const response = await fetch(`/api/outreach/followups/volunteers-by-programs?programs=${encodeURIComponent(programsParam)}`);
+          if (response.ok) {
+            const data = await response.json();
+            setVolunteers(data.volunteers || []);
+          }
         }
-      } else if (userToUse?.role === "volunteer" && userToUse.programs?.length > 0) {
-        // Fetch volunteers from the same programs
-        const response = await fetch(`/api/outreach/followups/volunteers-by-programs?programs=${userToUse.programs.join(',')}`);
+      } else {
+        const url = targetProg
+          ? `/api/outreach/followups/volunteers-by-programs?programs=${encodeURIComponent(targetProg)}`
+          : `/api/outreach/followups/volunteers-by-programs?allForAdmin=true`;
+        const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
           setVolunteers(data.volunteers || []);
@@ -254,10 +330,18 @@ export default function OutreachFollowUpsPage() {
   };
 
   const filteredContacts = contacts.filter(contact => {
+    // Search filter (Temple Name / Branch, Contact Name, or Phone)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchBranch = contact.branch?.toLowerCase().includes(q);
+      const matchName = contact.name?.toLowerCase().includes(q);
+      const matchPhone = contact.phone?.includes(q);
+      if (!matchBranch && !matchName && !matchPhone) return false;
+    }
+
     // Filter by volunteer first
     if (selectedVolunteerId === 'unassigned') {
       if (!contact.assignedVolunteer) {
-        // Then apply status filter if set
         if (filterStatus) {
           return contact.followup?.status === filterStatus;
         }
@@ -266,7 +350,6 @@ export default function OutreachFollowUpsPage() {
       return false;
     } else if (selectedVolunteerId) {
       if (contact.assignedVolunteer?._id === selectedVolunteerId) {
-        // Then apply status filter if set
         if (filterStatus) {
           return contact.followup?.status === filterStatus;
         }
@@ -275,19 +358,14 @@ export default function OutreachFollowUpsPage() {
       return false;
     }
     
-    // No volunteer filter selected - apply only status filter if set
     if (filterStatus) {
       return contact.followup?.status === filterStatus;
     }
     return true;
   });
 
-  console.log('Filter state:', { 
-    contactsCount: contacts.length, 
-    filteredCount: filteredContacts.length,
-    selectedVolunteerId,
-    filterStatus 
-  });
+  const totalPages = Math.ceil(filteredContacts.length / 20) || 1;
+  const paginatedContacts = filteredContacts.slice((currentPage - 1) * 20, currentPage * 20);
 
   const stats = {
     total: contacts.length,
@@ -299,7 +377,31 @@ export default function OutreachFollowUpsPage() {
   };
 
   const unassignedCount = contacts.filter(c => !c.assignedVolunteer).length;
-  const assignedCount = contacts.filter(c => c.assignedVolunteer).length;
+
+  // Calendar helpers
+  const getDaysInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    const firstDayIndex = date.getDay();
+
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      days.push({ dayNumber: prevMonthDays - i, isCurrentMonth: false, dateStr: "" });
+    }
+
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    for (let i = 1; i <= lastDay; i++) {
+      const mStr = String(month + 1).padStart(2, "0");
+      const dStr = String(i).padStart(2, "0");
+      days.push({ dayNumber: i, isCurrentMonth: true, dateStr: `${year}-${mStr}-${dStr}` });
+    }
+    return days;
+  };
+
+  const filteredModalVolunteers = volunteers.filter(v =>
+    v.name.toLowerCase().includes(volunteerSearchQuery.toLowerCase()) ||
+    v.email.toLowerCase().includes(volunteerSearchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen flex flex-col" style={{ 
@@ -311,22 +413,24 @@ export default function OutreachFollowUpsPage() {
       
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 border-l-4 border-[#A65353]">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">
                 Outreach Follow-ups
               </h1>
               <p className="text-sm sm:text-base text-gray-600 mt-1">
-                Manage follow-ups for outreach contacts                {adminName && currentUser?.role === "volunteer" && (
-                  <span className="ml-2 text-xs sm:text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                Manage follow-ups for outreach contacts
+                {adminName && currentUser?.role === "volunteer" && (
+                  <span className="ml-2 text-xs sm:text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded font-semibold">
                     Under: {adminName}
                   </span>
-                )}              </p>
+                )}
+              </p>
             </div>
             <button
               onClick={() => router.push('/outreach')}
-              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap"
+              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-semibold whitespace-nowrap cursor-pointer"
             >
               ← Back
             </button>
@@ -335,8 +439,8 @@ export default function OutreachFollowUpsPage() {
 
         {/* Message */}
         {message && (
-          <div className={`mb-4 p-3 sm:p-4 rounded-lg ${
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          <div className={`mb-4 p-3 sm:p-4 rounded-lg font-semibold ${
+            message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'
           }`}>
             {message.text}
           </div>
@@ -344,77 +448,199 @@ export default function OutreachFollowUpsPage() {
 
         {/* Controls */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Date Picker */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            {/* Program Selector */}
+            {programs.length > 0 && (
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-[#A65353]" />
+                  Select Program
+                </label>
+                <select
+                  value={selectedProgramId}
+                  onChange={(e) => setSelectedProgramId(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] font-semibold"
+                >
+                  {programs.map(p => (
+                    <option key={p._id} value={p._id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Date Picker Tool (Green Marked Session Dates) */}
+            <div className="relative">
+              <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#A65353]" />
+                Session Date
+              </label>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showCalendarPopup && selectedDate) {
+                    setCalendarMonth(new Date(selectedDate));
+                  }
+                  setShowCalendarPopup(!showCalendarPopup);
+                }}
+                className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#A65353] text-sm font-semibold cursor-pointer shadow-sm flex items-center justify-between transition-all ${
+                  availableDates.includes(selectedDate)
+                    ? "bg-emerald-50 border-emerald-400 text-emerald-900"
+                    : "bg-amber-50 border-amber-400 text-amber-900"
+                }`}
+              >
+                <span>{selectedDate || "Select Date"}</span>
+                <span className="text-xs opacity-75">▼</span>
+              </button>
+
+              {/* Custom Calendar Popup */}
+              {showCalendarPopup && (
+                <div className="absolute left-0 mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                    <span className="font-bold text-gray-800 text-sm">
+                      {calendarMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                        className="p-1 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date())}
+                        className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors cursor-pointer"
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                        className="p-1 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors cursor-pointer"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                    {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+                      <span key={day} className="text-[11px] font-bold text-gray-400 py-1">{day}</span>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {getDaysInMonth(calendarMonth.getFullYear(), calendarMonth.getMonth()).map((dayObj, idx) => {
+                      if (!dayObj.isCurrentMonth) {
+                        return <div key={idx} className="p-2"></div>;
+                      }
+                      const isSession = availableDates.includes(dayObj.dateStr);
+                      const isSelected = selectedDate === dayObj.dateStr;
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(dayObj.dateStr);
+                            setShowCalendarPopup(false);
+                          }}
+                          className={`p-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center relative ${
+                            isSelected && isSession
+                              ? "bg-emerald-600 text-white shadow-md font-bold ring-2 ring-emerald-300"
+                              : isSelected
+                              ? "bg-[#A65353] text-white shadow-md font-bold"
+                              : isSession
+                              ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 border border-emerald-400 font-bold shadow-sm"
+                              : "text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          {dayObj.dayNumber}
+                          {isSession && (
+                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-0.5 ${isSelected ? 'bg-white' : 'bg-emerald-600'}`}></span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Search Input (Temple Name / Contact) */}
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="inline w-4 h-4 mr-1" />
-                Select Date
+              <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Search className="w-4 h-4 text-[#A65353]" />
+                Search Temple / Contact
               </label>
               <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search temple name..."
+                className="w-full px-3 py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353]"
               />
             </div>
 
             {/* Filter Status */}
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                <Filter className="inline w-4 h-4 mr-1" />
+              <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Filter className="w-4 h-4 text-[#A65353]" />
                 Filter by Status
               </label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All</option>
-                {statusOptions.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </div>
+              <div className="flex gap-2">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] font-semibold"
+                >
+                  <option value="">All Statuses</option>
+                  {statusOptions.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
 
-            {/* Create Button */}
-            <div className="flex items-end">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                disabled={loading}
-                className="w-full px-4 py-2 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] transition-colors font-medium text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <UserPlus size={18} />
-                Create List
-              </button>
+                {currentUser?.role === "admin" && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    disabled={loading}
+                    className="px-4 py-2.5 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] transition-colors font-bold text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <UserPlus size={18} />
+                    Create List
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mt-4 sm:mt-6">
-            <div className="bg-gray-100 p-2 sm:p-3 rounded-lg text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mt-6">
+            <div className="bg-gray-100 p-3 rounded-lg text-center border border-gray-200">
               <div className="text-lg sm:text-2xl font-bold text-gray-800">{stats.total}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">Total</div>
             </div>
-            <div className="bg-green-100 p-2 sm:p-3 rounded-lg text-center">
+            <div className="bg-green-100 p-3 rounded-lg text-center border border-green-200">
               <div className="text-lg sm:text-2xl font-bold text-green-800">{stats.coming}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Coming</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">Coming</div>
             </div>
-            <div className="bg-red-100 p-2 sm:p-3 rounded-lg text-center">
+            <div className="bg-red-100 p-3 rounded-lg text-center border border-red-200">
               <div className="text-lg sm:text-2xl font-bold text-red-800">{stats.notComing}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Coming</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">Not Coming</div>
             </div>
-            <div className="bg-yellow-100 p-2 sm:p-3 rounded-lg text-center">
+            <div className="bg-yellow-100 p-3 rounded-lg text-center border border-yellow-200">
               <div className="text-lg sm:text-2xl font-bold text-yellow-800">{stats.mayCome}</div>
-              <div className="text-xs sm:text-sm text-gray-600">May Come</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">May Come</div>
             </div>
-            <div className="bg-orange-100 p-2 sm:p-3 rounded-lg text-center">
+            <div className="bg-orange-100 p-3 rounded-lg text-center border border-orange-200">
               <div className="text-lg sm:text-2xl font-bold text-orange-800">{stats.notAnswered}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Answered</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">Not Answered</div>
             </div>
-            <div className="bg-blue-100 p-2 sm:p-3 rounded-lg text-center">
+            <div className="bg-blue-100 p-3 rounded-lg text-center border border-blue-200">
               <div className="text-lg sm:text-2xl font-bold text-blue-800">{stats.notCalled}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Called</div>
+              <div className="text-xs sm:text-sm text-gray-600 font-semibold">Not Called</div>
             </div>
           </div>
         </div>
@@ -422,55 +648,52 @@ export default function OutreachFollowUpsPage() {
         {/* Volunteer Filter Cards */}
         {contacts.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Filter by Volunteer</h3>
+            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">Filter by Volunteer</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {/* All Volunteers Card */}
               <button
                 onClick={() => setSelectedVolunteerId(null)}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                className={`p-4 rounded-lg border-2 transition-all text-left cursor-pointer ${
                   selectedVolunteerId === null
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+                    ? 'border-[#A65353] bg-amber-50/50'
+                    : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold text-gray-800 text-sm sm:text-base">All Volunteers</div>
+                    <div className="font-bold text-gray-800 text-sm sm:text-base">All Volunteers</div>
                     <div className="text-xs sm:text-sm text-gray-600 mt-1">
                       {contacts.length} contact{contacts.length !== 1 ? 's' : ''}
                     </div>
                   </div>
-                  <div className="text-2xl font-bold text-blue-600">
+                  <div className="text-2xl font-bold text-[#A65353]">
                     {contacts.length}
                   </div>
                 </div>
               </button>
 
-              {/* Unassigned Card */}
               {unassignedCount > 0 && (
                 <button
                   onClick={() => setSelectedVolunteerId('unassigned')}
-                  className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  className={`p-4 rounded-lg border-2 transition-all text-left cursor-pointer ${
                     selectedVolunteerId === 'unassigned'
-                      ? 'border-orange-600 bg-orange-50'
-                      : 'border-gray-300 bg-white hover:border-orange-400 hover:bg-orange-50'
+                      ? 'border-red-600 bg-red-50'
+                      : 'border-gray-300 bg-white hover:border-red-400 hover:bg-red-50'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-semibold text-gray-800 text-sm sm:text-base">Unassigned</div>
+                      <div className="font-bold text-gray-800 text-sm sm:text-base">Unassigned</div>
                       <div className="text-xs sm:text-sm text-gray-600 mt-1">
                         {unassignedCount} contact{unassignedCount !== 1 ? 's' : ''}
                       </div>
                     </div>
-                    <div className="text-2xl font-bold text-orange-600">
+                    <div className="text-2xl font-bold text-red-600">
                       {unassignedCount}
                     </div>
                   </div>
                 </button>
               )}
 
-              {/* Individual Volunteer Cards */}
               {volunteers
                 .map(volunteer => {
                   const assignedContactsCount = contacts.filter(
@@ -483,7 +706,7 @@ export default function OutreachFollowUpsPage() {
                   <button
                     key={volunteer._id}
                     onClick={() => setSelectedVolunteerId(volunteer._id)}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    className={`p-4 rounded-lg border-2 transition-all text-left cursor-pointer ${
                       selectedVolunteerId === volunteer._id
                         ? 'border-green-600 bg-green-50'
                         : 'border-gray-300 bg-white hover:border-green-400 hover:bg-green-50'
@@ -491,7 +714,7 @@ export default function OutreachFollowUpsPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-800 text-sm sm:text-base truncate">
+                        <div className="font-bold text-gray-800 text-sm sm:text-base truncate">
                           {volunteer.name}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600 mt-1">
@@ -509,275 +732,237 @@ export default function OutreachFollowUpsPage() {
           </div>
         )}
 
-        {/* Contacts List */}
+        {/* Contacts List & Pagination */}
         {loading ? (
-          <div className="text-center py-8">
-            <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin mx-auto" />
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#A65353] mx-auto"></div>
           </div>
         ) : filteredContacts.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 text-center">
-            <p className="text-gray-600 text-sm sm:text-base">
-              No follow-ups found for outreach contacts on {selectedDate}
+          <div className="bg-white rounded-lg shadow-md p-8 text-center">
+            <p className="text-gray-600 font-semibold text-base">
+              No follow-ups found matching your criteria on {selectedDate}
             </p>
-            <p className="text-gray-500 text-xs sm:text-sm mt-2">
-              Click "Create List" to generate a follow-up list for this date
-            </p>
+            {currentUser?.role === "admin" && (
+              <p className="text-gray-500 text-sm mt-2">
+                Click "Create List" to randomly distribute temple outreach contacts to your volunteers
+              </p>
+            )}
           </div>
         ) : (
-          <div className="space-y-2">
-            {filteredContacts.map((contact, index) => (
-              <div
-                key={contact._id}
-                className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden hover:shadow-md transition-shadow"
-              >
-                  {/* Main Row */}
-                  <div className="flex items-center px-4 sm:px-6 py-3 sm:py-4 gap-3 sm:gap-6 hover:bg-yellow-100 transition-colors">
-                    <span className="text-sm sm:text-base font-bold text-gray-600 shrink-0">#{index + 1}</span>
-                    
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
-                        <a 
-                          href={`/outreach/${contact._id}`}
-                          className="hover:underline cursor-pointer"
-                        >
-                          {contact.name}
-                        </a>
-                      </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Phone size={14} className="text-gray-500 shrink-0" />
-                        <p className="text-xs sm:text-sm text-gray-600">{contact.phone}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 sm:gap-4">
-                      {contact.assignedVolunteer && (
-                        <div className="hidden sm:block text-sm">
-                          <span className="text-gray-600">Volunteer: </span>
-                          <span className="font-medium">{contact.assignedVolunteer.name}</span>
-                        </div>
-                      )}
-                      
-                      <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-                        contact.followup?.status === 'Coming' ? 'bg-green-100 text-green-800' :
-                        contact.followup?.status === 'Not Coming' ? 'bg-red-100 text-red-800' :
-                        contact.followup?.status === 'May Come' ? 'bg-yellow-100 text-yellow-800' :
-                        contact.followup?.status === 'Not Answered' ? 'bg-orange-100 text-orange-800' :
-                        contact.followup?.status === 'Not Called' || !contact.followup ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {contact.followup?.status || 'Not Called'}
+          <div>
+            {totalPages > 1 && (
+              <div className="mb-4">
+                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {paginatedContacts.map((contact, index) => (
+                <div
+                  key={contact._id}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-all p-4 sm:p-5"
+                >
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+                      <span className="text-sm sm:text-base font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md shrink-0">
+                        #{(currentPage - 1) * 20 + index + 1}
                       </span>
                       
-                      <button
-                        onClick={() => setExpandedContact(
-                          expandedContact.includes(contact._id)
-                            ? expandedContact.filter(id => id !== contact._id)
-                            : [...expandedContact, contact._id]
-                        )}
-                        className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-full transition-colors shrink-0"
-                      >
-                        <ChevronDown 
-                          size={18} 
-                          className={`transform transition-transform ${
-                            expandedContact.includes(contact._id) ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded Details */}
-                  {expandedContact.includes(contact._id) && (
-                    <div className="border-t border-yellow-300 bg-yellow-50 px-4 sm:px-6 py-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
-                        <div>
-                          <span className="text-xs sm:text-sm font-semibold text-gray-600">Profession:</span>
-                          <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.profession}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+                            <a href={`/outreach/${contact._id}`} className="hover:text-[#A65353] transition-colors">
+                              {contact.name}
+                            </a>
+                          </h3>
+                          {contact.branch && (
+                            <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">
+                              Temple: {contact.branch}
+                            </span>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-xs sm:text-sm font-semibold text-gray-600">Branch:</span>
-                          <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.branch}</span>
-                        </div>
-                        {contact.assignedVolunteer && (
-                          <div className="sm:hidden col-span-full">
-                            <span className="text-xs sm:text-sm font-semibold text-gray-600">Assigned Volunteer:</span>
-                            <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.assignedVolunteer.name}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="text-xs sm:text-sm font-semibold text-gray-600">Payment Status:</span>
-                          <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.paidStatus}</span>
-                        </div>
-                        {contact.currentLocation && (
-                          <div>
-                            <span className="text-xs sm:text-sm font-semibold text-gray-600">Location:</span>
-                            <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.currentLocation}</span>
-                          </div>
-                        )}
-                        {contact.motherTongue && (
-                          <div>
-                            <span className="text-xs sm:text-sm font-semibold text-gray-600">Mother Tongue:</span>
-                            <span className="ml-2 text-xs sm:text-sm text-gray-800">{contact.motherTongue}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Followup Form */}
-                      <div className="mt-4 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-300">
-                        <h4 className="text-sm sm:text-base font-semibold mb-3">Follow-up Status</h4>
                         
-                        {editingFollowUp?.contactId === contact._id ? (
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700">Status</label>
-                              <select
-                                value={editingFollowUp.status}
-                                onChange={(e) => setEditingFollowUp({ ...editingFollowUp, status: e.target.value })}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                              >
-                                {statusOptions.map(status => (
-                                  <option key={status} value={status}>{status}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700">Remarks</label>
-                              <textarea
-                                value={editingFollowUp.remarks}
-                                onChange={(e) => setEditingFollowUp({ ...editingFollowUp, remarks: e.target.value })}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                rows={3}
-                                placeholder="Add your remarks here..."
-                              />
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <button
-                                onClick={() => handleUpdateFollowUp(contact._id)}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 text-sm font-medium"
-                              >
-                                <Save size={16} />
-                                Save
-                              </button>
-                              <button
-                                onClick={() => setEditingFollowUp(null)}
-                                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm font-medium"
-                              >
-                                Cancel
-                              </button>
-                            </div>
+                        <div className="flex items-center gap-4 mt-1 text-xs sm:text-sm text-gray-600 flex-wrap">
+                          <span className="flex items-center gap-1 font-semibold">
+                            <Phone size={14} className="text-gray-400" />
+                            {contact.phone}
+                          </span>
+                          {contact.profession && (
+                            <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-medium">
+                              {contact.profession}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-center w-full sm:w-auto justify-end">
+                      {editingFollowUp?.contactId === contact._id ? (
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 bg-gray-50 p-3 rounded-lg border w-full sm:w-auto">
+                          <select
+                            value={editingFollowUp.status}
+                            onChange={(e) => setEditingFollowUp({ ...editingFollowUp, status: e.target.value })}
+                            className="px-3 py-1.5 border rounded-lg text-sm font-semibold w-full sm:w-auto"
+                          >
+                            {statusOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                          <input
+                            type="text"
+                            value={editingFollowUp.remarks}
+                            onChange={(e) => setEditingFollowUp({ ...editingFollowUp, remarks: e.target.value })}
+                            placeholder="Add remarks..."
+                            className="px-3 py-1.5 border rounded-lg text-sm w-full sm:w-48"
+                          />
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                              onClick={() => handleUpdateFollowUp(contact._id)}
+                              className="flex-1 sm:flex-none px-3 py-1.5 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <Save size={16} /> Save
+                            </button>
+                            <button
+                              onClick={() => setEditingFollowUp(null)}
+                              className="px-3 py-1.5 bg-gray-400 text-white rounded-lg font-semibold text-sm hover:bg-gray-500 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
                           </div>
-                        ) : (
-                          <div>
-                            {contact.followup ? (
-                              <div className="space-y-2">
-                                <div>
-                                  <span className="text-xs sm:text-sm font-semibold text-gray-700">Status:</span>
-                                  <span className={`ml-2 text-xs sm:text-sm px-2 py-1 rounded ${
-                                    contact.followup.status === 'Coming' ? 'bg-green-100 text-green-800' :
-                                    contact.followup.status === 'Not Coming' ? 'bg-red-100 text-red-800' :
-                                    contact.followup.status === 'May Come' ? 'bg-yellow-100 text-yellow-800' :
-                                    'bg-red-300 text-gray-800'
-                                  }`}>
-                                    {contact.followup.status}
-                                  </span>
-                                </div>
-                                {contact.followup.remarks && (
-                                  <div>
-                                    <span className="text-xs sm:text-sm font-semibold text-gray-700">Remarks:</span>
-                                    <p className="text-xs sm:text-sm text-gray-600 mt-1 bg-yellow-50 p-2 rounded">{contact.followup.remarks}</p>
-                                  </div>
-                                )}
-                                {contact.followup.calledBy && (
-                                  <div className="text-xs text-gray-500 bg-yellow-50 p-2 rounded">
-                                    Called by <span className="font-medium">{contact.followup.calledBy.name}</span>
-                                    {contact.followup.calledAt && (
-                                      <> on {new Date(contact.followup.calledAt).toLocaleString()}</>
-                                    )}
-                                  </div>
-                                )}
-                                <button
-                                  onClick={() => setEditingFollowUp({
-                                    contactId: contact._id,
-                                    status: contact.followup?.status || 'Not Called',
-                                    remarks: contact.followup?.remarks || ''
-                                  })}
-                                  className="mt-2 px-4 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] text-sm font-medium"
-                                >
-                                  Update Follow-up
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setEditingFollowUp({
-                                  contactId: contact._id,
-                                  status: 'Not Called',
-                                  remarks: ''
-                                })}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm font-medium"
-                              >
-                                <Phone size={16} />
-                                Add Follow-up
-                              </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                          <div className="text-right">
+                            <span className={`text-xs sm:text-sm font-bold px-3 py-1 rounded-full inline-block ${
+                              contact.followup?.status === 'Coming' ? 'bg-green-100 text-green-800 border border-green-300' :
+                              contact.followup?.status === 'Not Coming' ? 'bg-red-100 text-red-800 border border-red-300' :
+                              contact.followup?.status === 'May Come' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                              'bg-gray-100 text-gray-700 border border-gray-300'
+                            }`}>
+                              {contact.followup?.status || "Not Called"}
+                            </span>
+                            {contact.followup?.remarks && (
+                              <p className="text-xs text-gray-600 mt-1 italic max-w-xs truncate">
+                                "{contact.followup.remarks}"
+                              </p>
                             )}
                           </div>
-                        )}
-                      </div>
+
+                          <button
+                            onClick={() => setEditingFollowUp({
+                              contactId: contact._id,
+                              status: contact.followup?.status || 'Coming',
+                              remarks: contact.followup?.remarks || ''
+                            })}
+                            className="px-4 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] font-bold text-xs sm:text-sm whitespace-nowrap cursor-pointer shadow-sm"
+                          >
+                            Update
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               ))}
             </div>
-          )}
 
-          {/* Create List Modal */}
-          {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-              <div className="p-6">
-                <h2 className="text-2xl font-bold mb-4">Create Follow-up List</h2>
-                <p className="text-gray-600 mb-4">
-                  Select volunteers to create follow-up assignments for {selectedDate}
+            {totalPages > 1 && (
+              <div className="mt-6">
+                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create List Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col overflow-hidden border">
+              <div className="p-6 border-b bg-gray-50">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Create Follow-up List</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Randomly assign temple outreach contacts for <b className="text-[#A65353]">{selectedDate}</b> without creating a session record.
                 </p>
-                
-                <div className="space-y-2 mb-6">
-                  {volunteers.map(volunteer => (
-                    <label
-                      key={volunteer._id}
-                      className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedVolunteers.includes(volunteer._id)}
-                        onChange={() => toggleVolunteerSelection(volunteer._id)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                      />
-                      <div className="ml-3">
-                        <div className="font-medium">{volunteer.name}</div>
-                        <div className="text-sm text-gray-500">{volunteer.email}</div>
-                      </div>
-                    </label>
-                  ))}
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1 space-y-3">
+                {/* Volunteer Search Box */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    value={volunteerSearchQuery}
+                    onChange={(e) => setVolunteerSearchQuery(e.target.value)}
+                    placeholder="Search volunteers across all programs..."
+                    className="w-full pl-9 pr-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-[#A65353]"
+                  />
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex justify-between items-center pb-1">
+                  <span className="text-sm font-bold text-gray-700">Select Volunteers ({filteredModalVolunteers.length} shown):</span>
                   <button
-                    onClick={handleAssignVolunteers}
-                    disabled={selectedVolunteers.length === 0 || loading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Creating...' : `Create List (${selectedVolunteers.length} Volunteer${selectedVolunteers.length !== 1 ? 's' : ''})`}
-                  </button>
-                  <button
+                    type="button"
                     onClick={() => {
-                      setShowCreateModal(false);
-                      setSelectedVolunteers([]);
+                      const visibleIds = filteredModalVolunteers.map(v => v._id);
+                      const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedVolunteers.includes(id));
+                      if (allVisibleSelected) {
+                        setSelectedVolunteers(selectedVolunteers.filter(id => !visibleIds.includes(id)));
+                      } else {
+                        const newSelected = new Set([...selectedVolunteers, ...visibleIds]);
+                        setSelectedVolunteers(Array.from(newSelected));
+                      }
                     }}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                    disabled={loading}
+                    className="text-xs text-[#A65353] font-bold hover:underline cursor-pointer"
                   >
-                    Cancel
+                    {filteredModalVolunteers.length > 0 && filteredModalVolunteers.every(v => selectedVolunteers.includes(v._id)) ? "Deselect Shown" : "Select Shown"}
                   </button>
                 </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {filteredModalVolunteers.length === 0 ? (
+                    <p className="text-center text-gray-500 text-sm py-4">No volunteers found matching search query.</p>
+                  ) : (
+                    filteredModalVolunteers.map(volunteer => (
+                      <label
+                        key={volunteer._id}
+                        className={`flex items-center p-3 rounded-xl border transition-all cursor-pointer ${
+                          selectedVolunteers.includes(volunteer._id)
+                            ? "bg-emerald-50 border-emerald-300"
+                            : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedVolunteers.includes(volunteer._id)}
+                          onChange={() => toggleVolunteerSelection(volunteer._id)}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353]"
+                        />
+                        <div className="ml-3">
+                          <div className="font-bold text-gray-900 text-sm">{volunteer.name}</div>
+                          <div className="text-xs text-gray-500">{volunteer.email}</div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6 border-t bg-gray-50 flex gap-3">
+                <button
+                  onClick={handleAssignVolunteers}
+                  disabled={selectedVolunteers.length === 0 || loading}
+                  className="flex-1 px-5 py-2.5 bg-[#A65353] text-white rounded-xl font-bold hover:bg-[#8B4545] disabled:opacity-50 cursor-pointer shadow-md transition-colors"
+                >
+                  {loading ? 'Creating...' : `Randomly Assign (${selectedVolunteers.length})`}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setSelectedVolunteers([]);
+                  }}
+                  className="px-5 py-2.5 bg-gray-400 text-white rounded-xl font-bold hover:bg-gray-500 cursor-pointer transition-colors"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

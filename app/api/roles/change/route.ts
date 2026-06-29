@@ -33,7 +33,10 @@ function canChange(targetRole: Role, newRole: Role, actorRole: Role): boolean {
   // 1. Cannot change someone equal or higher rank
   if (targetRank >= actorRank) return false;
 
-  // 2. Volunteer cannot assign volunteer or admin
+  // 2. Newly registered guests can only have their role changed by admin
+  if (targetRole === "guest" && actorRole !== "admin") return false;
+
+  // 3. Volunteer cannot assign volunteer or admin
   if (actorRole === "volunteer") {
     if (newRole === "volunteer" || newRole === "admin") return false;
   }
@@ -103,8 +106,24 @@ export async function POST(req: NextRequest) {
 
       // Apply update
       user.role = newRole;
-      user.handledBy = actorId;
+      if (!user.handledBy) user.handledBy = "unassigned";
       if (!user.registeredBy) user.registeredBy = actorId;
+
+      if (targetRole === "guest" && actorRole === "admin" && (newRole === "volunteer" || newRole === "participant")) {
+        const programId = body.programId as string | undefined;
+        if (programId) {
+          const existingPrograms = user.programs || [];
+          user.programs = Array.from(new Set([...existingPrograms, programId]));
+        } else {
+          const Program = (await import("@/models/Program")).default;
+          const adminPrograms = await Program.find({ createdBy: actorId }).select("_id");
+          if (adminPrograms && adminPrograms.length > 0) {
+            const programIds = adminPrograms.map((p: any) => String(p._id));
+            const existingPrograms = user.programs || [];
+            user.programs = Array.from(new Set([...existingPrograms, ...programIds]));
+          }
+        }
+      }
 
       await user.save();
 
@@ -161,7 +180,7 @@ export async function POST(req: NextRequest) {
         }
 
         existing.role = newRole;
-        existing.handledBy = actorId;
+        if (!existing.handledBy) existing.handledBy = "unassigned";
         if (!existing.registeredBy) existing.registeredBy = actorId;
 
         await existing.save();
@@ -190,7 +209,7 @@ export async function POST(req: NextRequest) {
         homeTown: outreach.area,
         connectedToTemple: outreach.connectedToTemple,
         role: newRole,
-        handledBy: actorId,
+        handledBy: "unassigned",
         registeredBy: actorId,
         source: "outreach",
         sourceOutreachId: outreach._id,

@@ -74,14 +74,14 @@ export async function POST(req: Request) {
     const userObj = user.toObject();
     delete userObj.password;
 
-    // Auto-login: Set JWT cookie based on role
-    const response = setAuthCookie(user._id.toString(), user.email, user.role);
+    // Auto-login: Set JWT cookie based on role and archive status
+    const response = setAuthCookie(user._id.toString(), user.email, user.role, Boolean(user.isArchived));
     
     // Add user data and redirect info to response
     const responseData = {
       message: "OTP verified successfully. Account activated.",
       user: userObj,
-      redirect: user.role === 'guest' ? '/profile' : '/dashboard'
+      redirect: (user.role === 'guest' || user.isArchived) ? '/profile' : '/dashboard'
     };
 
     return NextResponse.json(responseData, { 

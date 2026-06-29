@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, X } from 'lucide-react';
 import Image from 'next/image';
 
+interface TempleOption {
+  temple: string;
+  creatorName: string;
+  label: string;
+}
+
 export default function OutreachFormPage() {
   const router = useRouter();
   const [showQRModal, setShowQRModal] = useState(false);
   const [admins, setAdmins] = useState<{ _id: string; name: string }[]>([]);
+  const [templeList, setTempleList] = useState<TempleOption[]>([]);
   const [qrImage, setQrImage] = useState<string>('');
   const [qrStorageWarning, setQrStorageWarning] = useState('');
   const [selectedTempleOption, setSelectedTempleOption] = useState('');
@@ -32,6 +39,7 @@ export default function OutreachFormPage() {
 
   useEffect(() => {
     fetchAdmins();
+    fetchTemples();
     // Load QR code from localStorage
     try {
       const savedQR = localStorage.getItem('outreachQRCode');
@@ -137,6 +145,35 @@ export default function OutreachFormPage() {
     }
   };
 
+  const fetchTemples = async () => {
+    try {
+      const response = await fetch('/api/programs/all');
+      if (response.ok) {
+        const data = await response.json();
+        const programs = data.programs || [];
+        const uniqueTemplesMap = new Map<string, TempleOption>();
+        
+        programs.forEach((prog: any) => {
+          if (prog.temple && typeof prog.temple === 'string' && prog.temple.trim()) {
+            const templeName = prog.temple.trim();
+            const creator = prog.createdBy?.name || 'Admin';
+            const lowerKey = templeName.toLowerCase();
+            if (!uniqueTemplesMap.has(lowerKey)) {
+              uniqueTemplesMap.set(lowerKey, {
+                temple: templeName,
+                creatorName: creator,
+                label: `${templeName} (${creator})`
+              });
+            }
+          }
+        });
+        setTempleList(Array.from(uniqueTemplesMap.values()));
+      }
+    } catch (error) {
+      console.error('Error fetching temples:', error);
+    }
+  };
+
   const professions = [
     'Student',
     'Engineer',
@@ -173,12 +210,6 @@ export default function OutreachFormPage() {
     'Sponsored'
   ];
 
-  const templeOptions = [
-    'ISKCON Patia',
-    'ISKCON Bhubaneswar',
-    'Other'
-  ];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -198,7 +229,11 @@ export default function OutreachFormPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...formData, phone: normalizedPhone }),
+        body: JSON.stringify({ 
+          ...formData, 
+          phone: normalizedPhone,
+          underWhichAdmin: formData.underWhichAdmin || admins[0]?.name || 'Admin'
+        }),
       });
 
       const data = await response.json();
@@ -250,7 +285,7 @@ export default function OutreachFormPage() {
             className="flex items-center gap-2 text-gray-700 hover:text-gray-900 mb-4 cursor-pointer"
           >
             <ArrowLeft size={20} />
-            <span>Back to Login</span>
+            <span>Back</span>
           </button>
           
           <div className="flex items-center gap-4 mb-4">
@@ -431,7 +466,7 @@ export default function OutreachFormPage() {
               />
             </div>
 
-            {/* Branch */}
+            {/* Temple Name */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Temple Name<span className="text-red-600">*</span>
@@ -443,17 +478,27 @@ export default function OutreachFormPage() {
                   const value = e.target.value;
                   setSelectedTempleOption(value);
                   if (value && value !== 'Other') {
-                    setFormData({ ...formData, branch: value });
+                    const found = templeList.find(t => t.temple === value);
+                    setFormData({ 
+                      ...formData, 
+                      branch: value,
+                      underWhichAdmin: found ? found.creatorName : (admins[0]?.name || 'Admin')
+                    });
                   } else {
-                    setFormData({ ...formData, branch: '' });
+                    setFormData({ 
+                      ...formData, 
+                      branch: '',
+                      underWhichAdmin: admins[0]?.name || 'Admin'
+                    });
                   }
                 }}
                 className="w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"
               >
                 <option value="">Select Temple Name</option>
-                {templeOptions.map((temple) => (
-                  <option key={temple} value={temple}>{temple}</option>
+                {templeList.map((t) => (
+                  <option key={t.temple} value={t.temple}>{t.label}</option>
                 ))}
+                <option value="Other">Other</option>
               </select>
 
               {selectedTempleOption === 'Other' && (
@@ -483,30 +528,6 @@ export default function OutreachFormPage() {
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-            </div>
-
-            {/* Under Which Admin */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Under Which Admin<span className="text-red-600">*</span>
-              </label>
-              <select
-                required
-                value={formData.underWhichAdmin}
-                onChange={(e) => setFormData({ ...formData, underWhichAdmin: e.target.value })}
-                className="w-full px-4 py-2.5 rounded border border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none bg-white"
-              >
-                <option value="">Select Admin</option>
-                {admins.length === 0 && <option value="" disabled>Loading admins...</option>}
-                {admins.map((admin) => (
-                  <option key={admin._id} value={admin.name}>{admin.name}</option>
-                ))}
-              </select>
-              {admins.length === 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  {admins.length === 0 ? 'No admins found. Please contact system administrator.' : ''}
-                </p>
-              )}
             </div>
 
             {/* Comment */}

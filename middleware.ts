@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 // protected sections
-const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach", "/notifications"];
+const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach", "/notifications", "/programs"];
 
 // pages that logged-in users shouldn't access
 const authPages = ["/login", "/signup"];
@@ -12,7 +12,7 @@ async function verifyToken(token: string) {
   try {
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
     const { payload } = await jwtVerify(token, secret);
-    return payload as { userId: string; role: string };
+    return payload as { userId: string; role: string; isArchived?: boolean };
   } catch (error) {
     return null;
   }
@@ -31,11 +31,11 @@ export async function middleware(req: NextRequest) {
       const decoded = await verifyToken(token);
       
       if (decoded) {
-        // Redirect based on role
-        if (decoded.role === 'admin' || decoded.role === 'volunteer' || decoded.role === 'participant') {
-          return NextResponse.redirect(new URL("/dashboard", req.url));
-        } else if (decoded.role === 'guest') {
+        // Redirect based on role or archive status
+        if (decoded.isArchived || decoded.role === 'guest') {
           return NextResponse.redirect(new URL("/profile", req.url));
+        } else if (decoded.role === 'admin' || decoded.role === 'volunteer' || decoded.role === 'participant') {
+          return NextResponse.redirect(new URL("/dashboard", req.url));
         } else {
           return NextResponse.redirect(new URL("/", req.url));
         }
@@ -73,6 +73,11 @@ export async function middleware(req: NextRequest) {
       return response;
     }
 
+    // Restrict archived users and guests to only their profile
+    if ((decoded.isArchived || decoded.role === "guest") && !pathname.startsWith("/profile")) {
+      return NextResponse.redirect(new URL("/profile", req.url));
+    }
+
     // Restrict dashboard to only admins, volunteers, and participants
     if (pathname.startsWith("/dashboard")) {
       if (!["admin", "volunteer", "participant"].includes(decoded.role)) {
@@ -80,9 +85,13 @@ export async function middleware(req: NextRequest) {
       }
     }
 
-    // Restrict guests and outreach pages to only admins and volunteers
-    if ((pathname.startsWith("/guests") || pathname.startsWith("/outreach")) && 
-        !["admin", "volunteer"].includes(decoded.role)) {
+    // Restrict guests page to only admins
+    if (pathname.startsWith("/guests") && decoded.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    // Restrict outreach pages to only admins and volunteers
+    if (pathname.startsWith("/outreach") && !["admin", "volunteer"].includes(decoded.role)) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
@@ -114,6 +123,8 @@ export const config = {
     "/outreach/:path*",
     "/notifications",
     "/notifications/:path*",
+    "/programs",
+    "/programs/:path*",
     "/login",
     "/signup",
   ],

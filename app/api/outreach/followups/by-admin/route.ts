@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import OutreachContact from "@/models/Outreach";
 import OutreachFollowUp from "@/models/OutreachFollowUp";
+import User from "@/models/User";
 import jwt from "jsonwebtoken";
 import { TokenPayload } from "@/types/TokenPayload";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     // Get admin name from query or use current user's name if admin
     const { searchParams } = new URL(req.url);
     let adminName = searchParams.get("adminName");
-    const followUpDate = searchParams.get("date");
+    const followUpDate = searchParams.get("date") || searchParams.get("followUpDate");
 
     // If no admin name provided and user is admin, use their name
     if (!adminName && currentUser.role === "admin") {
@@ -43,9 +44,19 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch outreach contacts for this admin
-    const contacts = await OutreachContact.find({ underWhichAdmin: adminName })
+    let contacts = await OutreachContact.find({ underWhichAdmin: adminName })
       .sort({ createdAt: -1 })
       .lean();
+
+    // Filter by same temple name as admin if available
+    const adminUser = await User.findOne({ name: adminName, role: "admin" });
+    if (adminUser && adminUser.connectedToTemple) {
+      const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
+      const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
+      if (sameTempleContacts.length > 0) {
+        contacts = sameTempleContacts;
+      }
+    }
 
     // Fetch followups for the specific date
     const followups = await OutreachFollowUp.find({
@@ -57,7 +68,7 @@ export async function GET(req: NextRequest) {
       .lean();
 
     // Map followups to contacts
-    const contactsWithFollowups = contacts
+    let contactsWithFollowups = contacts
       .map((contact) => {
         const followup = followups.find(
           (f: any) => f.outreachContact.toString() === contact._id.toString()
@@ -78,6 +89,14 @@ export async function GET(req: NextRequest) {
         return null;
       })
       .filter(Boolean);
+
+    if (currentUser.role === "volunteer") {
+      contactsWithFollowups = contactsWithFollowups.filter((item: any) => {
+        if (!item || !item.assignedVolunteer) return false;
+        const volId = item.assignedVolunteer._id ? item.assignedVolunteer._id.toString() : item.assignedVolunteer.toString();
+        return volId === currentUser.userId;
+      });
+    }
 
     return NextResponse.json({
       success: true,

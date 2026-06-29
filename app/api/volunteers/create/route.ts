@@ -35,11 +35,30 @@ export async function POST(req: NextRequest) {
       maritalStatus,
       programs,
       level,
+      grade,
+      handledBy,
     } = body;
 
-    if (!name || !email) {
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !gender ||
+      !profession ||
+      !homeTown ||
+      !connectedToTemple ||
+      !maritalStatus ||
+      numberOfRounds === undefined ||
+      numberOfRounds === null ||
+      numberOfRounds === "" ||
+      level === undefined ||
+      level === null ||
+      level === "" ||
+      !grade ||
+      !address
+    ) {
       return NextResponse.json(
-        { error: "Name and email are required" },
+        { error: "All fields are compulsory to add a volunteer" },
         { status: 400 }
       );
     }
@@ -60,16 +79,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ $or: [{ email }, { phone }] });
     if (existing) {
+      if (existing.isArchived) {
+        existing.isArchived = false;
+        existing.isActive = true;
+        existing.name = name || existing.name;
+        existing.email = email || existing.email;
+        existing.phone = phone || existing.phone;
+        if (profession !== undefined) existing.profession = profession;
+        if (homeTown !== undefined) existing.homeTown = homeTown;
+        if (address !== undefined) existing.address = address;
+        if (gender !== undefined) existing.gender = gender;
+        if (numberOfRounds !== undefined) existing.numberOfRounds = numberOfRounds;
+        if (connectedToTemple !== undefined) existing.connectedToTemple = connectedToTemple;
+        if (level !== undefined) existing.level = level;
+        if (grade !== undefined) existing.grade = grade;
+        if (maritalStatus !== undefined) existing.maritalStatus = maritalStatus;
+        if (programs !== undefined) existing.programs = programs;
+
+        if (existing.role === "volunteer") {
+          existing.participantsUnder = 0;
+          await User.updateMany(
+            { handledBy: { $in: [existing._id, String(existing._id)] } },
+            { $set: { handledBy: "unassigned" } }
+          );
+        } else if (existing.role === "participant") {
+          existing.role = "participant";
+        }
+
+        await existing.save();
+
+        const obj = existing.toObject();
+        delete obj.password;
+
+        return NextResponse.json(
+          { message: "Archived user restored successfully", user: obj },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "User with this email already exists" },
+        { error: "A user with this email or phone already exists. Email and phone must be unique." },
         { status: 400 }
       );
     }
 
-    // Admin can create volunteers directly without approval.
-    if (decoded.role === "admin") {
+    const isProgramAdmin = String(decoded.userId) === String(program.createdBy._id);
+
+    // That particular program's temple admin can create volunteers directly without needing approval from themselves.
+    if (isProgramAdmin) {
       const defaultPassword = "Volunteer@123";
       const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
@@ -87,10 +146,11 @@ export async function POST(req: NextRequest) {
         maritalStatus,
         programs,
         level,
+        grade,
         role: "volunteer",
         registeredBy: decoded.userId,
-        handledBy: decoded.userId,
-        isActive: false,
+        handledBy: handledBy || "unassigned",
+        isActive: true,
       });
 
       const obj = user.toObject();
@@ -102,18 +162,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Volunteer-created volunteers require admin approval request.
+    // For any other user (volunteer or another admin), adding a volunteer requires approval by that particular program's temple admin.
     const requester: any = await User.findById(decoded.userId).select("name email phone level programs");
     if (!requester) {
       return NextResponse.json({ error: "Requester not found" }, { status: 404 });
     }
 
-    const requesterProgramIds = (requester.programs || []).map((p: any) => String(p));
-    if (!requesterProgramIds.includes(String(primaryProgramId))) {
-      return NextResponse.json(
-        { error: "You can only request volunteers for your own program" },
-        { status: 403 }
-      );
+    if (decoded.role !== "admin") {
+      const requesterProgramIds = (requester.programs || []).map((p: any) => String(p));
+      if (!requesterProgramIds.includes(String(primaryProgramId))) {
+        return NextResponse.json(
+          { error: "You can only request volunteers for your own program" },
+          { status: 403 }
+        );
+      }
     }
 
     const existingPending = await VolunteerCreationRequest.findOne({
@@ -144,6 +206,7 @@ export async function POST(req: NextRequest) {
       connectedToTemple,
       numberOfRounds,
       level,
+      grade,
       maritalStatus,
       program: primaryProgramId,
       programAdmin: program.createdBy._id,

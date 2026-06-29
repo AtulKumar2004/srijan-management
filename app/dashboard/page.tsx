@@ -21,13 +21,48 @@ interface Program {
   temple?: string;
 }
 
+const compressImageToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new window.Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSide = 900;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Unable to process image'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.75);
+        resolve(compressed);
+      };
+
+      image.onerror = () => reject(new Error('Invalid image file'));
+      image.src = reader.result as string;
+    };
+
+    reader.onerror = () => reject(new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showOutreachModal, setShowOutreachModal] = useState(false);
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [user, setUser] = useState<{ name: String; email: string; role: string; _id: string } | null>(null);
   const [newProgram, setNewProgram] = useState({
     name: "",
@@ -45,6 +80,26 @@ export default function AdminDashboard() {
     photo: "",
     temple: "",
   });
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'new' | 'edit') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingPhoto(true);
+    try {
+      const compressed = await compressImageToDataUrl(file);
+      if (target === 'new') {
+        setNewProgram(prev => ({ ...prev, photo: compressed }));
+      } else {
+        setEditProgram(prev => ({ ...prev, photo: compressed }));
+      }
+    } catch (error) {
+      console.error("Failed to compress/upload photo:", error);
+      alert("Failed to process photo. Please select a valid image file.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   useEffect(() => {
     checkAuth();
@@ -253,8 +308,8 @@ export default function AdminDashboard() {
           </h1>
           
           <div className="flex flex-wrap gap-4">
-            {/* Guests Card - only for admins and volunteers */}
-            {user?.role !== "participant" && (
+            {/* Guests Card - only for admins */}
+            {user?.role === "admin" && (
               <button
                 onClick={() => router.push('/guests')}
                 className="flex bg-green-200 items-center cursor-pointer gap-3 px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-emerald-600 group"
@@ -274,7 +329,7 @@ export default function AdminDashboard() {
             {/* Outreach Card - only for admins and volunteers */}
             {user?.role !== "participant" && (
               <button
-                onClick={() => router.push('/outreach')}
+                onClick={() => setShowOutreachModal(true)}
                 className="flex bg-red-200 items-center gap-3 px-6 py-3 cursor-pointer rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-red-600 group"
               >
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center group-hover:bg-red-600 transition-colors">
@@ -440,24 +495,52 @@ export default function AdminDashboard() {
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Photo URL
+                  Program Photo
                 </label>
-                <input
-                  type="url"
-                  value={newProgram.photo}
-                  onChange={(e) => setNewProgram({ ...newProgram, photo: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': '#A65353' } as React.CSSProperties}
-                  placeholder="https://example.com/image.jpg"
-                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <label className="cursor-pointer px-4 py-2 text-sm font-semibold text-[#A65353] bg-red-50 border border-[#A65353]/30 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 shadow-sm">
+                      <span>{uploadingPhoto ? "Uploading..." : "📁 Upload Photo"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingPhoto}
+                        onChange={(e) => handlePhotoUpload(e, 'new')}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-xs text-gray-500">or paste URL below</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={newProgram.photo}
+                    onChange={(e) => setNewProgram({ ...newProgram, photo: e.target.value })}
+                    className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': '#A65353' } as React.CSSProperties}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  {newProgram.photo && (
+                    <div className="mt-1 relative w-full h-32 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+                      <img src={newProgram.photo} alt="Preview" className="max-h-full max-w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setNewProgram({ ...newProgram, photo: "" })}
+                        className="absolute top-2 right-2 bg-black/60 text-white rounded-full px-2 py-0.5 text-xs font-bold hover:bg-black/80 cursor-pointer"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Temple
+                  Temple <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(Must be unique across all programs)</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={newProgram.temple}
                   onChange={(e) => setNewProgram({ ...newProgram, temple: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
@@ -558,27 +641,57 @@ export default function AdminDashboard() {
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Photo URL
+                  Program Photo
                 </label>
-                <input
-                  type="url"
-                  value={editProgram.photo}
-                  onChange={(e) => setEditProgram({ ...editProgram, photo: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': '#A65353' } as React.CSSProperties}
-                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <label className="cursor-pointer px-4 py-2 text-sm font-semibold text-[#A65353] bg-red-50 border border-[#A65353]/30 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2 shadow-sm">
+                      <span>{uploadingPhoto ? "Uploading..." : "📁 Upload Photo"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingPhoto}
+                        onChange={(e) => handlePhotoUpload(e, 'edit')}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-xs text-gray-500">or paste URL below</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={editProgram.photo}
+                    onChange={(e) => setEditProgram({ ...editProgram, photo: e.target.value })}
+                    className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': '#A65353' } as React.CSSProperties}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  {editProgram.photo && (
+                    <div className="mt-1 relative w-full h-32 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+                      <img src={editProgram.photo} alt="Preview" className="max-h-full max-w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={() => setEditProgram({ ...editProgram, photo: "" })}
+                        className="absolute top-2 right-2 bg-black/60 text-white rounded-full px-2 py-0.5 text-xs font-bold hover:bg-black/80 cursor-pointer"
+                      >
+                        ✕ Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mb-4">
                 <label className="block text-gray-700 font-medium mb-2">
-                  Temple
+                  Temple <span className="text-red-500">*</span> <span className="text-xs text-gray-500 font-normal">(Must be unique across all programs)</span>
                 </label>
                 <input
                   type="text"
+                  required
                   value={editProgram.temple}
                   onChange={(e) => setEditProgram({ ...editProgram, temple: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': '#A65353' } as React.CSSProperties}
+                  placeholder="e.g., ISKCON Delhi"
                 />
               </div>
 
@@ -633,6 +746,78 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Outreach Selection Modal */}
+      {showOutreachModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative border-2 border-red-200">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Outreach Options</h2>
+                  <p className="text-xs sm:text-sm text-gray-500">Select an action to proceed</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOutreachModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Outreach Form Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOutreachModal(false);
+                  router.push('/outreach-form');
+                }}
+                className="w-full flex bg-red-50 hover:bg-red-100 items-center gap-4 px-5 py-4 cursor-pointer rounded-xl shadow-sm hover:shadow transition-all border-2 border-red-300 hover:border-red-600 group text-left"
+              >
+                <div className="w-12 h-12 rounded-full bg-red-100 group-hover:bg-red-600 flex items-center justify-center text-red-600 group-hover:text-white transition-colors shrink-0">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-bold text-gray-800 group-hover:text-red-700 transition-colors text-base sm:text-lg">Outreach Form</div>
+                  <div className="text-xs sm:text-sm text-gray-500 mt-0.5">Register new contacts</div>
+                </div>
+              </button>
+
+              {/* Followups Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOutreachModal(false);
+                  router.push('/outreach');
+                }}
+                className="w-full flex bg-red-50 hover:bg-red-100 items-center gap-4 px-5 py-4 cursor-pointer rounded-xl shadow-sm hover:shadow transition-all border-2 border-red-300 hover:border-red-600 group text-left"
+              >
+                <div className="w-12 h-12 rounded-full bg-red-100 group-hover:bg-red-600 flex items-center justify-center text-red-600 group-hover:text-white transition-colors shrink-0">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-bold text-gray-800 group-hover:text-red-700 transition-colors text-base sm:text-lg">Followups</div>
+                  <div className="text-xs sm:text-sm text-gray-500 mt-0.5">View & manage followups</div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -3,15 +3,16 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IVolunteerCreationRequest extends Document {
   name: string;
   email: string;
-  phone?: string;
-  profession?: string;
-  homeTown?: string;
-  address?: string;
-  gender?: string;
-  connectedToTemple?: string;
-  numberOfRounds?: number;
-  level?: number;
-  maritalStatus?: string;
+  phone: string;
+  profession: string;
+  homeTown: string;
+  address: string;
+  gender: string;
+  connectedToTemple: string;
+  numberOfRounds: number;
+  level: number;
+  grade: string;
+  maritalStatus: string;
   program: mongoose.Types.ObjectId;
   programAdmin: mongoose.Types.ObjectId;
   requestedBy: mongoose.Types.ObjectId;
@@ -27,15 +28,16 @@ const VolunteerCreationRequestSchema = new Schema<IVolunteerCreationRequest>(
   {
     name: { type: String, required: true },
     email: { type: String, required: true },
-    phone: String,
-    profession: String,
-    homeTown: String,
-    address: String,
-    gender: String,
-    connectedToTemple: String,
-    numberOfRounds: { type: Number, default: 0 },
-    level: Number,
-    maritalStatus: String,
+    phone: { type: String, required: true },
+    profession: { type: String, required: true },
+    homeTown: { type: String, required: true },
+    address: { type: String, required: true },
+    gender: { type: String, required: true },
+    connectedToTemple: { type: String, required: true },
+    numberOfRounds: { type: Number, required: true, default: 0 },
+    level: { type: Number, required: true },
+    grade: { type: String, required: true },
+    maritalStatus: { type: String, required: true },
     program: { type: Schema.Types.ObjectId, ref: "Program", required: true },
     programAdmin: { type: Schema.Types.ObjectId, ref: "User", required: true },
     requestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },

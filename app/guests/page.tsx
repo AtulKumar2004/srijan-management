@@ -32,7 +32,40 @@ export default function GuestsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [expandedGuest, setExpandedGuest] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
+  const [programs, setPrograms] = useState<{ _id: string; name: string; temple?: string }[]>([]);
   
+  // Bulk edit states
+  const [selectedGuests, setSelectedGuests] = useState<string[]>([]);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [bulkEditFields, setBulkEditFields] = useState<Record<string, boolean>>({});
+  const [bulkEditValues, setBulkEditValues] = useState<{
+    role: string;
+    programId: string;
+    level: string;
+    grade: string;
+    numberOfRounds: string;
+    isActive: string;
+    gender: string;
+    profession: string;
+    homeTown: string;
+    connectedToTemple: string;
+    maritalStatus: string;
+  }>({
+    role: "participant",
+    programId: "",
+    level: "",
+    grade: "",
+    numberOfRounds: "",
+    isActive: "true",
+    gender: "",
+    profession: "",
+    homeTown: "",
+    connectedToTemple: "",
+    maritalStatus: ""
+  });
+
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGender, setFilterGender] = useState("");
@@ -56,7 +89,7 @@ export default function GuestsPage() {
       }
 
       const authData = await authRes.json();
-      if (!authData.user || !["admin", "volunteer"].includes(authData.user.role)) {
+      if (!authData.user || authData.user.role !== "admin") {
         router.push("/dashboard");
         return;
       }
@@ -71,13 +104,20 @@ export default function GuestsPage() {
 
   const fetchGuests = async () => {
     try {
-      const guestsRes = await fetch(`/api/users/by-role?role=guest`);
+      const [guestsRes, progRes] = await Promise.all([
+        fetch(`/api/users/by-role?role=guest`),
+        fetch(`/api/programs/all`)
+      ]);
       if (guestsRes.ok) {
         const data = await guestsRes.json();
         setGuests(data.users || []);
       }
+      if (progRes.ok) {
+        const progData = await progRes.json();
+        setPrograms(progData.programs || []);
+      }
     } catch (error) {
-      console.error("Error fetching guests:", error);
+      console.error("Error fetching guests or programs:", error);
     } finally {
       setLoading(false);
     }
@@ -119,6 +159,78 @@ export default function GuestsPage() {
     setFilterActive("");
   };
 
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBulkUpdating(true);
+    setMessage(null);
+
+    try {
+      if (bulkEditFields.role && (bulkEditValues.role === 'participant' || bulkEditValues.role === 'volunteer') && !bulkEditValues.programId) {
+        setMessage({ type: 'error', text: 'Please select a program for the participant/volunteer to join.' });
+        setBulkUpdating(false);
+        return;
+      }
+
+      const updates: any = {};
+      if (bulkEditFields.role) {
+        updates.role = bulkEditValues.role;
+        if (bulkEditValues.programId) {
+          updates.programId = bulkEditValues.programId;
+          if (bulkEditValues.role === 'participant') {
+            updates.level = 1;
+            updates.grade = 'N/A';
+          } else if (bulkEditValues.role === 'volunteer') {
+            updates.level = 1;
+            updates.grade = 'D';
+          }
+        }
+      }
+      if (bulkEditFields.level && !updates.level) updates.level = bulkEditValues.level;
+      if (bulkEditFields.grade && !updates.grade) updates.grade = bulkEditValues.grade;
+      if (bulkEditFields.numberOfRounds) updates.numberOfRounds = bulkEditValues.numberOfRounds !== "" ? parseInt(bulkEditValues.numberOfRounds) : 0;
+      if (bulkEditFields.isActive) updates.isActive = bulkEditValues.isActive === "true";
+      if (bulkEditFields.gender) updates.gender = bulkEditValues.gender;
+      if (bulkEditFields.profession) updates.profession = bulkEditValues.profession;
+      if (bulkEditFields.homeTown) updates.homeTown = bulkEditValues.homeTown;
+      if (bulkEditFields.connectedToTemple) updates.connectedToTemple = bulkEditValues.connectedToTemple;
+      if (bulkEditFields.maritalStatus) updates.maritalStatus = bulkEditValues.maritalStatus;
+
+      if (Object.keys(updates).length === 0) {
+        setMessage({ type: 'error', text: 'Please check at least one field to update' });
+        setBulkUpdating(false);
+        return;
+      }
+
+      const res = await fetch('/api/guests/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guestIds: selectedGuests,
+          updates
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message || 'Guests updated successfully!' });
+        setShowBulkEditModal(false);
+        setSelectedGuests([]);
+        setBulkEditFields({});
+        fetchGuests();
+        setTimeout(() => setMessage(null), 4000);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update guests' });
+        setTimeout(() => setMessage(null), 4000);
+      }
+    } catch (err) {
+      console.error("Bulk edit error:", err);
+      setMessage({ type: 'error', text: 'Error performing bulk update' });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -139,6 +251,16 @@ export default function GuestsPage() {
     }}>
       <Header />
       
+      {message && (
+        <div className={`container mx-auto px-4 mt-4 max-w-7xl`}>
+          <div className={`p-4 rounded-lg shadow font-medium ${
+            message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'
+          }`}>
+            {message.text}
+          </div>
+        </div>
+      )}
+
       <main className="grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -234,10 +356,40 @@ export default function GuestsPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              {filteredGuests.length} Guest{filteredGuests.length !== 1 ? 's' : ''}
-            </h2>
+          <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={filteredGuests.length > 0 && filteredGuests.every(g => selectedGuests.includes(g._id))}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    const newSet = new Set([...selectedGuests, ...filteredGuests.map(g => g._id)]);
+                    setSelectedGuests(Array.from(newSet));
+                  } else {
+                    const visibleIds = new Set(filteredGuests.map(g => g._id));
+                    setSelectedGuests(selectedGuests.filter(id => !visibleIds.has(id)));
+                  }
+                }}
+                className="w-5 h-5 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer"
+              />
+              <h2 className="text-lg font-semibold text-gray-800">
+                {filteredGuests.length} Guest{filteredGuests.length !== 1 ? 's' : ''}
+              </h2>
+            </div>
+
+            {selectedGuests.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-xs sm:text-sm bg-[#A65353] text-white px-2.5 py-1.5 rounded-lg shadow-sm">
+                  {selectedGuests.length} Selected
+                </span>
+                <button
+                  onClick={() => setShowBulkEditModal(true)}
+                  className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
+                >
+                  Bulk Edit Fields
+                </button>
+              </div>
+            )}
           </div>
 
           {filteredGuests.length === 0 ? (
@@ -252,12 +404,35 @@ export default function GuestsPage() {
                   className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
                 >
                   {/* Main Row */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-8">
-                    {/* Name */}
-                    <div className="w-full sm:w-48 lg:w-56 sm:ml-8">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
-                        {guest.name}
-                      </h3>
+                  <div 
+                    onClick={() => setExpandedGuest(
+                      expandedGuest.includes(guest._id)
+                        ? expandedGuest.filter(id => id !== guest._id)
+                        : [...expandedGuest, guest._id]
+                    )}
+                    className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-8 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <input
+                        type="checkbox"
+                        checked={selectedGuests.includes(guest._id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (e.target.checked) {
+                            setSelectedGuests([...selectedGuests, guest._id]);
+                          } else {
+                            setSelectedGuests(selectedGuests.filter(id => id !== guest._id));
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 text-[#A65353] rounded focus:ring-[#A65353] cursor-pointer flex-shrink-0"
+                      />
+                      {/* Name */}
+                      <div className="w-full sm:w-48 lg:w-56">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
+                          {guest.name}
+                        </h3>
+                      </div>
                     </div>
                     
                     {/* Contact Icons */}
@@ -268,7 +443,7 @@ export default function GuestsPage() {
                             href={`https://wa.me/${guest.phone.replace(/\D/g, '')}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-green-600 hover:text-green-700"
+                            className="text-green-600 hover:text-green-700 cursor-pointer"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -277,7 +452,7 @@ export default function GuestsPage() {
                           </a>
                           <a
                             href={`tel:${guest.phone}`}
-                            className="text-red-600 hover:text-red-700"
+                            className="text-red-600 hover:text-red-700 cursor-pointer"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <Phone size={18} />
@@ -404,6 +579,257 @@ export default function GuestsPage() {
             </div>
           )}
         </div>
+
+        {/* Bulk Edit Fields Modal */}
+        {showBulkEditModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <div className="p-4 sm:p-6">
+                <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Bulk Edit Fields</h2>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                      Updating {selectedGuests.length} selected guest(s). Check the box beside any field you want to update.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowBulkEditModal(false)}
+                    className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    {/* Role */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.role}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, role: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Role</span>
+                      </label>
+                      <select
+                        disabled={!bulkEditFields.role}
+                        value={bulkEditValues.role}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, role: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <option value="participant">Participant</option>
+                        <option value="volunteer">Volunteer</option>
+                        <option value="guest">Guest</option>
+                        <option value="admin">Admin</option>
+                      </select>
+
+                      {bulkEditFields.role && (bulkEditValues.role === 'participant' || bulkEditValues.role === 'volunteer') && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <label className="block text-xs font-semibold text-red-600 mb-1">
+                            Select Program to Join *
+                          </label>
+                          <select
+                            value={bulkEditValues.programId}
+                            onChange={(e) => setBulkEditValues({ ...bulkEditValues, programId: e.target.value })}
+                            className="w-full px-3 py-1.5 text-sm border border-red-300 rounded-md bg-red-50 focus:ring-red-500"
+                            required
+                          >
+                            <option value="">-- Select Program --</option>
+                            {programs.map(prog => (
+                              <option key={prog._id} value={prog._id}>
+                                {prog.name} {prog.temple ? `(${prog.temple})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Level */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.level}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, level: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Level</span>
+                      </label>
+                      <select
+                        disabled={!bulkEditFields.level}
+                        value={bulkEditValues.level}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, level: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <option value="">N/A</option>
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2</option>
+                        <option value="3">Level 3</option>
+                        <option value="4">Level 4</option>
+                      </select>
+                    </div>
+
+                    {/* Number of Rounds */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.numberOfRounds}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, numberOfRounds: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Number of Rounds</span>
+                      </label>
+                      <select
+                        disabled={!bulkEditFields.numberOfRounds}
+                        value={bulkEditValues.numberOfRounds}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, numberOfRounds: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        {Array.from({ length: 17 }, (_, i) => (
+                          <option key={i} value={i}>{i}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Gender */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.gender}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, gender: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Gender</span>
+                      </label>
+                      <select
+                        disabled={!bulkEditFields.gender}
+                        value={bulkEditValues.gender}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, gender: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    {/* Marital Status */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.maritalStatus}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, maritalStatus: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Marital Status</span>
+                      </label>
+                      <select
+                        disabled={!bulkEditFields.maritalStatus}
+                        value={bulkEditValues.maritalStatus}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, maritalStatus: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <option value="">Select Status</option>
+                        <option value="Unmarried">Unmarried</option>
+                        <option value="Married">Married</option>
+                      </select>
+                    </div>
+
+                    {/* Profession */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.profession}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, profession: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Profession</span>
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!bulkEditFields.profession}
+                        placeholder="e.g. Engineer"
+                        value={bulkEditValues.profession}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, profession: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                      </input>
+                    </div>
+
+                    {/* Home Town */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.homeTown}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, homeTown: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Home Town</span>
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!bulkEditFields.homeTown}
+                        placeholder="e.g. Mumbai"
+                        value={bulkEditValues.homeTown}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, homeTown: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                      </input>
+                    </div>
+
+                    {/* Connected to Temple */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2 md:col-span-2">
+                      <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={!!bulkEditFields.connectedToTemple}
+                          onChange={(e) => setBulkEditFields({ ...bulkEditFields, connectedToTemple: e.target.checked })}
+                          className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                        />
+                        <span>Connected to Temple</span>
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!bulkEditFields.connectedToTemple}
+                        placeholder="e.g. ISKCON Chowpatty"
+                        value={bulkEditValues.connectedToTemple}
+                        onChange={(e) => setBulkEditValues({ ...bulkEditValues, connectedToTemple: e.target.value })}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                      </input>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkEditModal(false)}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={bulkUpdating || Object.values(bulkEditFields).filter(Boolean).length === 0}
+                      className="px-6 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8e4545] transition-colors disabled:opacity-50 text-sm font-medium cursor-pointer shadow-md"
+                    >
+                      {bulkUpdating ? 'Updating...' : `Apply Bulk Edit (${Object.values(bulkEditFields).filter(Boolean).length} fields)`}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

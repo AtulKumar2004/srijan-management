@@ -40,6 +40,8 @@ export async function DELETE(
     const { id } = await params;
     await connectDB();
 
+    const isPermanent = req.nextUrl.searchParams.get("permanent") === "true";
+
     // Get token from cookie
     const token = req.cookies.get("token");
     if (!token) {
@@ -52,26 +54,75 @@ export async function DELETE(
     // Verify token
     const decoded = jwt.verify(token.value, process.env.JWT_SECRET!) as { userId: string; role: string };
 
-    // Only admins can delete users
-    if (decoded.role !== "admin") {
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    if (String(id) === String(decoded.userId)) {
       return NextResponse.json(
-        { error: "Unauthorized - Admin access required" },
+        { error: "Unauthorized - You cannot delete your own record" },
         { status: 403 }
       );
     }
 
-    // Delete the user
-    const user = await User.findByIdAndDelete(id);
-
-    if (!user) {
+    if (isPermanent) {
+      if (decoded.role !== "admin") {
+        return NextResponse.json(
+          { error: "Unauthorized - Only admin can permanently delete users" },
+          { status: 403 }
+        );
+      }
+      if (targetUser.role === "volunteer") {
+        await User.updateMany(
+          { handledBy: { $in: [id, String(id)] } },
+          { $set: { handledBy: "unassigned" } }
+        );
+      }
+      await User.findByIdAndDelete(id);
       return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
+        { message: "User permanently deleted successfully" },
+        { status: 200 }
       );
     }
 
+    if (decoded.role !== "admin") {
+      const isMentee = Boolean(targetUser.handledBy && String(targetUser.handledBy) === String(decoded.userId));
+      const isUnassigned = !targetUser.handledBy || targetUser.handledBy === "unassigned";
+      
+      if (decoded.role === "volunteer") {
+        if (targetUser.role === "volunteer" && !isMentee) {
+          return NextResponse.json(
+            { error: "Unauthorized - A volunteer cannot delete those volunteers who are not his mentees" },
+            { status: 403 }
+          );
+        }
+        if (targetUser.role !== "volunteer" && !(isMentee || isUnassigned)) {
+          return NextResponse.json(
+            { error: "Unauthorized - You can only delete participants you mentor or unassigned participants" },
+            { status: 403 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: "Unauthorized - You do not have permission to delete records" },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (targetUser.role === "volunteer") {
+      await User.updateMany(
+        { handledBy: { $in: [id, String(id)] } },
+        { $set: { handledBy: "unassigned" } }
+      );
+    }
+
+    // Soft delete (Archive)
+    await User.findByIdAndUpdate(id, { isArchived: true, handledBy: "unassigned", participantsUnder: 0 });
+
     return NextResponse.json(
-      { message: "User deleted successfully" },
+      { message: "User archived successfully" },
       { status: 200 }
     );
   } catch (error: any) {

@@ -4,8 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import AttendanceChart from "@/components/AttendanceChart";
-import { Save, X, Calendar, Mail, Phone, MapPin, Briefcase, User, Award, Target, BarChart3 } from "lucide-react";
+import { Save, X, Calendar, Mail, Phone, MapPin, Briefcase, User, Award, Target } from "lucide-react";
 
 interface UserData {
     _id: string;
@@ -25,6 +24,7 @@ interface UserData {
     howDidYouHearAboutUs?: string;
     maritalStatus?: string;
     isActive?: boolean;
+    isArchived?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -56,19 +56,6 @@ function ProfileContent() {
         checkAuthAndFetchProfile();
     }, []);
 
-    // Auto-switch to attendance tab for volunteers/participants after user loads
-    useEffect(() => {
-        if (user && (user.role === 'volunteer' || user.role === 'participant')) {
-            setActiveTab('attendance');
-        }
-    }, [user]);
-
-    useEffect(() => {
-        if (user && activeTab === 'attendance' && !attendanceData && (user.role === 'volunteer' || user.role === 'participant')) {
-            fetchAttendanceHistory();
-        }
-    }, [activeTab, user]);
-
     const fetchAttendanceHistory = async () => {
         if (!user) return;
         
@@ -94,8 +81,17 @@ function ProfileContent() {
                 const res = await fetch(`/api/users/${viewUserId}`);
                 if (res.ok) {
                     const data = await res.json();
-                    setUser(data.user);
-                    setFormData(data.user);
+                    const u = data.user;
+                    if (!u.isArchived && u.role === 'volunteer' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        router.replace(`/programs/${u.programs[0]}/volunteers/${u._id}?edit=true`);
+                        return;
+                    }
+                    if (!u.isArchived && u.role === 'participant' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        router.replace(`/programs/${u.programs[0]}/participants/${u._id}?edit=true`);
+                        return;
+                    }
+                    setUser(u);
+                    setFormData(u);
                 } else {
                     router.push("/profile"); // Redirect to own profile if user not found
                 }
@@ -110,8 +106,17 @@ function ProfileContent() {
 
                 const data = await res.json();
                 if (data.user) {
-                    setUser(data.user);
-                    setFormData(data.user);
+                    const u = data.user;
+                    if (!u.isArchived && u.role === 'volunteer' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        router.replace(`/programs/${u.programs[0]}/volunteers/${u._id}?edit=true`);
+                        return;
+                    }
+                    if (!u.isArchived && u.role === 'participant' && Array.isArray(u.programs) && u.programs.length > 0) {
+                        router.replace(`/programs/${u.programs[0]}/participants/${u._id}?edit=true`);
+                        return;
+                    }
+                    setUser(u);
+                    setFormData(u);
                 } else {
                     router.push("/login");
                 }
@@ -242,35 +247,22 @@ function ProfileContent() {
                         )}
                     </div>
                 </div>
-                {/* Tabs */}
-                {(user.role === 'volunteer' || user.role === 'participant') && (
-                    <div className="bg-white rounded-lg shadow-md mb-4 sm:mb-6 p-1">
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setActiveTab('profile')}
-                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${
-                                    activeTab === 'profile'
-                                        ? 'bg-cyan-600 text-white'
-                                        : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                            >
-                                <User className="w-5 h-5" />
-                                Profile
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('attendance')}
-                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${
-                                    activeTab === 'attendance'
-                                        ? 'bg-cyan-600 text-white'
-                                        : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                            >
-                                <BarChart3 className="w-5 h-5" />
-                                Attendance
-                            </button>
+
+                {user.isArchived && (
+                    <div className="bg-amber-100 border-l-4 border-amber-600 p-4 mb-4 sm:mb-6 rounded-r-lg shadow-sm">
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                                <span className="text-amber-700 font-bold text-lg">⚠️ Account Archived</span>
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm sm:text-base text-amber-800">
+                                    Your account is currently archived. You can view your profile details here, but access to dashboard features and programs is restricted.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 )}
+
                 {/* Message */}
                 {message && (
                     <div className={`mb-4 p-3 sm:p-4 rounded-lg ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -331,6 +323,24 @@ function ProfileContent() {
                                         />
                                     ) : (
                                         <p className="text-gray-900">{user.phone || 'Not provided'}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        New Password (Optional)
+                                    </label>
+                                    {isEditing ? (
+                                        <input
+                                            type="password"
+                                            name="password"
+                                            value={(formData as any).password || ''}
+                                            onChange={handleInputChange}
+                                            placeholder="Leave blank to keep current password"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                    ) : (
+                                        <p className="text-gray-400">••••••••</p>
                                     )}
                                 </div>
 
@@ -544,28 +554,6 @@ function ProfileContent() {
                         </div>
                     </div>
                     </form>
-                )}
-
-                {/* Attendance Tab */}
-                {activeTab === 'attendance' && (
-                    <div>
-                        {loadingAttendance ? (
-                            <div className="bg-white rounded-lg shadow-md p-12 flex items-center justify-center">
-                                <img src="/mrdanga.png" alt="Loading" className="w-16 h-16 animate-spin" />
-                            </div>
-                        ) : attendanceData ? (
-                            <AttendanceChart
-                                totalSessions={attendanceData.totalSessions}
-                                monthlyData={attendanceData.monthlyData}
-                                programData={attendanceData.programData}
-                                recentSessions={attendanceData.recentSessions}
-                            />
-                        ) : (
-                            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                                <p className="text-gray-600">No attendance data available</p>
-                            </div>
-                        )}
-                    </div>
                 )}
             </main>
 

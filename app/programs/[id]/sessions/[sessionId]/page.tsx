@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, User, CheckCircle, XCircle, Users } from "lucide-react";
+import { Calendar, User, CheckCircle, XCircle, Users, BookOpen, Layers } from "lucide-react";
 
 interface SessionDetail {
   _id: string;
   sessionDate: Date;
   sessionTopic: string;
   speakerName: string;
+  description?: string;
+  level?: number;
   programId: string;
 }
 
@@ -21,6 +22,8 @@ interface AttendanceUser {
   email: string;
   phone?: string;
   role: string;
+  level?: number;
+  grade?: string;
 }
 
 export default function SessionDetailPage() {
@@ -105,8 +108,10 @@ export default function SessionDetailPage() {
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">Session Details</h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">Attendance and Information</p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">Session Overview</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
+                Level {session.level || 1} Attendance & Details
+              </p>
             </div>
             <button
               onClick={() => router.back()}
@@ -117,86 +122,101 @@ export default function SessionDetailPage() {
           </div>
 
           {/* Session Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 text-sm">
             <div>
-              <div className="flex items-center gap-2 text-gray-600 mb-2">
-                <Calendar className="w-5 h-5" />
-                <span className="font-semibold">Date:</span>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Users className="w-4 h-4 text-[#A65353]" />
+                <span className="font-semibold">Topic:</span>
               </div>
-              <p className="text-gray-800 ml-7">{formatDate(session.sessionDate)}</p>
+              <p className="text-gray-800 font-bold text-base ml-6">{session.sessionTopic}</p>
             </div>
 
             <div>
-              <div className="flex items-center gap-2 text-gray-600 mb-2">
-                <User className="w-5 h-5" />
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Calendar className="w-4 h-4 text-[#A65353]" />
+                <span className="font-semibold">Date:</span>
+              </div>
+              <p className="text-gray-800 font-medium ml-6">{formatDate(session.sessionDate)}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <User className="w-4 h-4 text-[#A65353]" />
                 <span className="font-semibold">Speaker:</span>
               </div>
-              <p className="text-gray-800 ml-7">{session.speakerName}</p>
+              <p className="text-gray-800 font-medium ml-6">{session.speakerName}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <Layers className="w-4 h-4 text-[#A65353]" />
+                <span className="font-semibold">Session Level:</span>
+              </div>
+              <p className="text-gray-800 font-bold ml-6">Level {session.level || 1}</p>
             </div>
 
             <div className="md:col-span-2">
-              <div className="flex items-center gap-2 text-gray-600 mb-2">
-                <Users className="w-5 h-5" />
-                <span className="font-semibold">Topic:</span>
+              <div className="flex items-center gap-2 text-gray-500 mb-1">
+                <BookOpen className="w-4 h-4 text-[#A65353]" />
+                <span className="font-semibold">Description:</span>
               </div>
-              <p className="text-gray-800 ml-7 text-lg">{session.sessionTopic}</p>
+              <p className="text-gray-800 ml-6 whitespace-pre-wrap">{session.description || "No description provided."}</p>
             </div>
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-md p-4 text-center">
-            <div className="text-3xl font-bold text-blue-600">{totalStudents}</div>
-            <div className="text-sm text-gray-600 mt-1">Total Students</div>
+          <div className="bg-white rounded-lg shadow-md p-4 text-center border-b-4 border-blue-500">
+            <div className="text-2xl sm:text-3xl font-bold text-gray-800">{totalStudents}</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1">Total Participants (Level {session.level || 1})</div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-md p-4 text-center">
-            <div className="text-3xl font-bold text-green-600">{presentUsers.length}</div>
-            <div className="text-sm text-gray-600 mt-1">Present</div>
+          <div className="bg-white rounded-lg shadow-md p-4 text-center border-b-4 border-green-500">
+            <div className="text-2xl sm:text-3xl font-bold text-green-600">{presentUsers.length}</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1">Present Participants</div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-md p-4 text-center">
-            <div className="text-3xl font-bold text-red-600">{absentUsers.length}</div>
-            <div className="text-sm text-gray-600 mt-1">Absent</div>
+          <div className="bg-white rounded-lg shadow-md p-4 text-center border-b-4 border-red-500">
+            <div className="text-2xl sm:text-3xl font-bold text-red-600">{absentUsers.length}</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1">Absent Participants</div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-md p-4 text-center">
-            <div className="text-3xl font-bold text-purple-600">{attendanceRate}%</div>
-            <div className="text-sm text-gray-600 mt-1">Attendance Rate</div>
+          <div className="bg-white rounded-lg shadow-md p-4 text-center border-b-4 border-purple-500">
+            <div className="text-2xl sm:text-3xl font-bold text-purple-600">{attendanceRate}%</div>
+            <div className="text-xs sm:text-sm text-gray-600 mt-1">Attendance Rate</div>
           </div>
         </div>
 
         {/* Attendance Lists */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Present Students */}
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-                Present ({presentUsers.length})
+          {/* Present Participants */}
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-green-500">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <h2 className="text-lg font-bold text-gray-800">
+                Present List ({presentUsers.length})
               </h2>
             </div>
             
             {presentUsers.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No one marked present yet</p>
+              <p className="text-gray-500 italic text-center py-8 text-sm">No level {session.level || 1} participants marked present</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {presentUsers.map((user) => (
                   <div
                     key={user._id}
-                    className="p-3 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+                    onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Link href={`/profile?userId=${user._id}`}>
-                          <h3 className="font-semibold text-gray-800 hover:underline cursor-pointer">{user.name}</h3>
-                        </Link>
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                      </div>
-                      <span className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded-full font-medium">
-                        {user.role}
-                      </span>
+                    <div className="flex items-center gap-3 truncate">
+                      <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
+                      <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+                    </div>
+                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
+                      <span>📞 {user.phone || user.email || 'N/A'}</span>
+                      <span>Level: {user.level || session.level || 1}</span>
+                      <span>Grade: {user.grade || 'N/A'}</span>
                     </div>
                   </div>
                 ))}
@@ -204,34 +224,33 @@ export default function SessionDetailPage() {
             )}
           </div>
 
-          {/* Absent Students */}
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <XCircle className="w-6 h-6 text-red-600" />
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-                Absent ({absentUsers.length})
+          {/* Absent Participants */}
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-red-500">
+            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
+              <XCircle className="w-5 h-5 text-red-600" />
+              <h2 className="text-lg font-bold text-gray-800">
+                Absent List ({absentUsers.length})
               </h2>
             </div>
             
             {absentUsers.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">Everyone is present!</p>
+              <p className="text-gray-500 italic text-center py-8 text-sm">All level {session.level || 1} participants are present!</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {absentUsers.map((user) => (
                   <div
                     key={user._id}
-                    className="p-3 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                    onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Link href={`/profile?userId=${user._id}`}>
-                          <h3 className="font-semibold text-gray-800 hover:underline cursor-pointer">{user.name}</h3>
-                        </Link>
-                        <p className="text-sm text-gray-600">{user.email}</p>
-                      </div>
-                      <span className="text-xs px-2 py-1 bg-red-200 text-red-800 rounded-full font-medium">
-                        {user.role}
-                      </span>
+                    <div className="flex items-center gap-3 truncate">
+                      <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
+                      <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+                    </div>
+                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
+                      <span>📞 {user.phone || user.email || 'N/A'}</span>
+                      <span>Level: {user.level || session.level || 1}</span>
+                      <span>Grade: {user.grade || 'N/A'}</span>
                     </div>
                   </div>
                 ))}

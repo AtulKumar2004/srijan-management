@@ -30,10 +30,16 @@ export async function GET(req: NextRequest) {
     const programs = await Program.find({ createdBy: admin._id }).select("_id");
     const programIds = programs.map(p => p._id.toString());
 
-    // Find all volunteers who are enrolled in these programs
+    // Find all volunteers who are enrolled in these programs or registered by admin
     const volunteers = await User.find({
-      role: "volunteer",
-      programs: { $in: programIds }
+      role: { $in: ["volunteer", "admin"] },
+      isArchived: { $ne: true },
+      $or: [
+        { programs: { $in: programIds } },
+        { registeredBy: admin._id },
+        { registeredBy: admin.name },
+        { _id: admin._id }
+      ]
     }).select("name email").lean();
 
     return NextResponse.json({

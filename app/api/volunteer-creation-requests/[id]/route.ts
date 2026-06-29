@@ -71,10 +71,11 @@ export async function PATCH(
         maritalStatus: request.maritalStatus,
         programs: [request.program],
         level: request.level,
+        grade: request.grade,
         role: "volunteer",
         registeredBy: request.requestedBy,
-        handledBy: request.requestedBy,
-        isActive: false,
+        handledBy: "unassigned",
+        isActive: true,
       });
 
       request.status = "approved";

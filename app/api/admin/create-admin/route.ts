@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     // Promote to admin
     user.role = "admin";
-    user.handledBy = decoded.userId;
+    user.handledBy = "unassigned";
     if (!user.registeredBy) user.registeredBy = decoded.userId;
 
     await user.save();

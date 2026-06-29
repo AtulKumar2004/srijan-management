@@ -17,18 +17,39 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Build query to find volunteer or participant by phone and optionally filter by program
+    const normalizedPhone = phone.replace(/\D/g, "");
+    const level = searchParams.get("level");
+
+    // Build query to find volunteer or participant by phone and optionally filter by program and level
     const query: any = {
-      phone: phone,
-      role: { $in: ["participant", "volunteer"] }
+      phone: { $in: [phone, normalizedPhone] },
+      role: { $in: ["participant", "volunteer"] },
+      isArchived: { $ne: true }
     };
 
-    // If programId is provided, only return user if enrolled in that program
     if (programId) {
       query.programs = programId;
     }
 
-    const participant = await User.findOne(query).select("-password");
+    if (level) {
+      const lvlNum = Number(level);
+      if (lvlNum === 1) {
+        query.$or = [{ level: 1 }, { level: { $exists: false } }, { level: null }];
+      } else {
+        query.level = lvlNum;
+      }
+    }
+
+    let participant = await User.findOne(query).select("-password");
+
+    if (!participant) {
+      // Fallback: search by phone number across all non-archived participants or volunteers
+      participant = await User.findOne({
+        phone: { $in: [phone, normalizedPhone] },
+        role: { $in: ["participant", "volunteer"] },
+        isArchived: { $ne: true }
+      }).select("-password");
+    }
 
     if (!participant) {
       return NextResponse.json(

@@ -21,6 +21,9 @@ interface Guest {
   isActive?: boolean;
   maritalStatus?: string;
   role: string;
+  programs?: string[];
+  level?: number;
+  grade?: string;
   createdAt: Date;
 }
 
@@ -34,7 +37,8 @@ function GuestDetailsContent() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(searchParams.get('edit') === 'true');
   const [saving, setSaving] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ role: string; _id: string } | null>(null);
+  const [programs, setPrograms] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -49,6 +53,9 @@ function GuestDetailsContent() {
     isActive: true,
     maritalStatus: "",
     role: "",
+    programId: "",
+    level: "",
+    grade: "",
   });
 
   useEffect(() => {
@@ -70,6 +77,21 @@ function GuestDetailsContent() {
       }
 
       setCurrentUser(authData.user);
+      if (authData.user.role === "admin") {
+        try {
+          const progRes = await fetch("/api/programs");
+          if (progRes.ok) {
+            const progData = await progRes.json();
+            const allProg = progData.programs || [];
+            const adminProg = allProg.filter((p: any) => 
+              String(p.createdBy?._id || p.createdBy) === String(authData.user._id)
+            );
+            setPrograms(adminProg.length > 0 ? adminProg : allProg);
+          }
+        } catch (e) {
+          console.error("Error fetching admin programs:", e);
+        }
+      }
       await fetchGuestDetails();
     } catch (error) {
       console.error("Error checking auth:", error);
@@ -101,6 +123,9 @@ function GuestDetailsContent() {
           isActive: data.user.isActive ?? true,
           maritalStatus: data.user.maritalStatus || "",
           role: data.user.role || "",
+          programId: data.user.programs?.[0] || "",
+          level: data.user.level?.toString() || "",
+          grade: data.user.grade || "",
         });
       } else {
         router.push("/guests");
@@ -129,6 +154,9 @@ function GuestDetailsContent() {
         isActive: formData.isActive,
         maritalStatus: formData.maritalStatus || undefined,
         role: formData.role || undefined,
+        programId: formData.programId || undefined,
+        level: formData.level !== "" ? parseInt(formData.level) : undefined,
+        grade: formData.grade || undefined,
       };
 
       const response = await fetch(`/api/users/${userId}/update`, {
@@ -167,6 +195,9 @@ function GuestDetailsContent() {
         isActive: guest.isActive ?? true,
         maritalStatus: guest.maritalStatus || "",
         role: guest.role || "",
+        programId: guest.programs?.[0] || "",
+        level: guest.level?.toString() || "",
+        grade: guest.grade || "",
       });
     }
     setEditing(false);
@@ -512,15 +543,66 @@ function GuestDetailsContent() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                   {editing ? (
-                    <select
-                      value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      {(currentUser?.role === "admin" || currentUser?.role === "volunteer") && <option value="volunteer">Volunteer</option>}
-                      <option value="participant">Participant</option>
-                      <option value="guest">Guest</option>
-                    </select>
+                    <div>
+                      <select
+                        value={formData.role}
+                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                        disabled={guest.role === "guest" && currentUser?.role !== "admin"}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
+                      >
+                        {(currentUser?.role === "admin" || currentUser?.role === "volunteer") && <option value="volunteer">Volunteer</option>}
+                        <option value="participant">Participant</option>
+                        <option value="guest">Guest</option>
+                      </select>
+                      {guest.role === "guest" && currentUser?.role !== "admin" && (
+                        <p className="text-xs text-red-500 mt-1">Only admins can change the role of newly registered guests.</p>
+                      )}
+                      {currentUser?.role === "admin" && (formData.role === "volunteer" || formData.role === "participant") && (
+                        <div className="mt-3 bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-blue-900 mb-1.5">
+                              Enroll in Program (for {formData.role}) *
+                            </label>
+                            <select
+                              value={formData.programId || ""}
+                              onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
+                              className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white text-gray-800 focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer"
+                              required
+                            >
+                              <option value="">-- Select Program --</option>
+                              {programs.map((prog: any) => (
+                                <option key={prog._id} value={prog._id}>
+                                  {prog.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-blue-900 mb-1.5">Level *</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formData.level}
+                              onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                              className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white text-gray-800 focus:ring-2 focus:ring-blue-500 font-medium"
+                              placeholder="Enter level (e.g. 1)"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-blue-900 mb-1.5">Grade *</label>
+                            <input
+                              type="text"
+                              value={formData.grade}
+                              onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                              className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm bg-white text-gray-800 focus:ring-2 focus:ring-blue-500 font-medium"
+                              placeholder="Enter grade (e.g. A)"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <p className="text-gray-800 capitalize">{guest.role}</p>
                   )}

@@ -9,6 +9,8 @@ type RoleChangeEmailParams = {
   volunteerName: string;
   programName: string;
   requestId: string;
+  currentRole?: string;
+  requestedRole?: string;
 };
 
 export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) {
@@ -21,6 +23,8 @@ export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) 
     volunteerName,
     programName,
     requestId,
+    currentRole = "participant",
+    requestedRole = "volunteer",
   } = params;
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -40,8 +44,8 @@ export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) 
     const info = await transporter.sendMail({
       from: `"Srijan Youth Festival" <${process.env.EMAIL_USER}>`,
       to: adminEmail,
-      subject: "Approval Needed: Participant to Volunteer Request",
-      text: `Hare Krishna ${adminName},\n\nA volunteer role-change request needs your approval.\n\nProgram: ${programName}\nParticipant: ${participantName}\nParticipant Email: ${participantEmail || "N/A"}\nParticipant Phone: ${participantPhone || "N/A"}\nRequested By: ${volunteerName}\n\nReview request: ${reviewLink}\n\nWith prayers,\nSrijan Youth Festival Team`,
+      subject: `Approval Needed: Role Change Request (${currentRole} to ${requestedRole})`,
+      text: `Hare Krishna ${adminName},\n\nA volunteer role-change request needs your approval.\n\nProgram: ${programName}\nUser: ${participantName}\nRole Change: ${currentRole} to ${requestedRole}\nEmail: ${participantEmail || "N/A"}\nPhone: ${participantPhone || "N/A"}\nRequested By: ${volunteerName}\n\nReview request: ${reviewLink}\n\nWith prayers,\nSrijan Youth Festival Team`,
       html: `
         <div style="margin:0;padding:0;background:#f6f7fb;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7fb;padding:24px 12px;">
@@ -57,10 +61,11 @@ export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) 
                   <tr>
                     <td style="padding:28px 26px 10px 26px;font-family:Verdana,Arial,sans-serif;color:#2f3441;">
                       <p style="margin:0 0 12px 0;font-size:17px;line-height:1.6;font-weight:600;color:#7f3f1f;">Hare Krishna ${adminName},</p>
-                      <p style="margin:0 0 14px 0;font-size:15px;line-height:1.7;">A volunteer has requested to promote a participant to volunteer. Your approval is required.</p>
+                      <p style="margin:0 0 14px 0;font-size:15px;line-height:1.7;">A volunteer has requested to change a user's role from <strong>${currentRole}</strong> to <strong>${requestedRole}</strong>. Your approval is required.</p>
                       <div style="margin:16px 0;padding:16px;background:#fff8e8;border:1px solid #efd7a1;border-radius:12px;">
                         <p style="margin:0 0 6px 0;font-size:14px;"><strong>Program:</strong> ${programName}</p>
-                        <p style="margin:0 0 6px 0;font-size:14px;"><strong>Participant:</strong> ${participantName}</p>
+                        <p style="margin:0 0 6px 0;font-size:14px;"><strong>User:</strong> ${participantName}</p>
+                        <p style="margin:0 0 6px 0;font-size:14px;"><strong>Proposed Role:</strong> ${requestedRole}</p>
                         <p style="margin:0 0 6px 0;font-size:14px;"><strong>Email:</strong> ${participantEmail || "N/A"}</p>
                         <p style="margin:0 0 6px 0;font-size:14px;"><strong>Phone:</strong> ${participantPhone || "N/A"}</p>
                         <p style="margin:0;font-size:14px;"><strong>Requested By:</strong> ${volunteerName}</p>
@@ -85,10 +90,9 @@ export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) 
       `,
     });
 
-    console.log("Role change request email sent:", info.messageId);
-    return { ok: true };
+    return { ok: true, messageId: info.messageId };
   } catch (error: any) {
-    console.error("ROLE CHANGE REQUEST EMAIL ERROR:", error.message || error);
-    return { ok: false, error: error.message || "Failed to send request email" };
+    console.error("EMAIL_SEND_ERROR:", error);
+    return { ok: false, error: error.message };
   }
 }

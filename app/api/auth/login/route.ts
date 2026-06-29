@@ -43,10 +43,10 @@ export async function POST(req: Request) {
     }
 
     // SUCCESS → Set cookie using your function
-    const response = setAuthCookie(user._id.toString(), email, user.role);
+    const response = setAuthCookie(user._id.toString(), email, user.role, Boolean(user.isArchived));
     
-    // Add redirect info based on role
-    const redirectUrl = user.role === 'guest' ? '/profile' : '/dashboard';
+    // Add redirect info based on role or archive status
+    const redirectUrl = (user.role === 'guest' || user.isArchived) ? '/profile' : '/dashboard';
     
     const responseData = {
       message: "Login successful",
@@ -55,7 +55,8 @@ export async function POST(req: Request) {
         id: user._id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        isArchived: Boolean(user.isArchived)
       }
     };
 

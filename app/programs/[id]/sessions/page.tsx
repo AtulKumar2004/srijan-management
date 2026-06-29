@@ -4,13 +4,16 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, User, ChevronRight } from "lucide-react";
+import { Calendar, ChevronDown, X } from "lucide-react";
+import Pagination from "@/components/Pagination";
 
 interface Session {
   _id: string;
   sessionDate: Date;
   sessionTopic: string;
   speakerName: string;
+  description?: string;
+  level?: number;
   createdAt: Date;
   presentCount?: number;
   absentCount?: number;
@@ -29,6 +32,31 @@ export default function SessionsPage() {
   const [program, setProgram] = useState<Program | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Accordion state
+  const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
+  
+  // Edit modal state
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editForm, setEditForm] = useState({
+    sessionTopic: "",
+    sessionDate: "",
+    speakerName: "",
+    description: "",
+    level: "1"
+  });
+  // Create modal state
+  const [isCreating, setIsCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    sessionTopic: "Session",
+    sessionDate: "",
+    speakerName: "",
+    description: "",
+    level: "1"
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -36,6 +64,13 @@ export default function SessionsPage() {
 
   const fetchData = async () => {
     try {
+      // Fetch user auth info
+      const meRes = await fetch("/api/auth/me");
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setCurrentUserRole(meData.user?.role || '');
+      }
+
       // Fetch program details
       const programRes = await fetch(`/api/programs/${programId}`);
       if (programRes.ok) {
@@ -65,6 +100,98 @@ export default function SessionsPage() {
     });
   };
 
+  const toggleExpand = (sessionId: string) => {
+    if (expandedSessionIds.includes(sessionId)) {
+      setExpandedSessionIds(expandedSessionIds.filter(id => id !== sessionId));
+    } else {
+      setExpandedSessionIds([...expandedSessionIds, sessionId]);
+    }
+  };
+
+  const openEditModal = (session: Session) => {
+    setEditingSession(session);
+    const dateStr = session.sessionDate ? new Date(session.sessionDate).toISOString().split('T')[0] : "";
+    setEditForm({
+      sessionTopic: session.sessionTopic || "",
+      sessionDate: dateStr,
+      speakerName: session.speakerName || "",
+      description: session.description || "",
+      level: String(session.level || 1)
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSession) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/programs/${programId}/sessions/${editingSession._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm)
+      });
+      if (res.ok) {
+        setEditingSession(null);
+        fetchData();
+      } else {
+        alert("Failed to update session.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error saving session.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/programs/${programId}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm)
+      });
+      if (res.ok) {
+        setIsCreating(false);
+        setCreateForm({
+          sessionTopic: "Session",
+          sessionDate: "",
+          speakerName: "",
+          description: "",
+          level: "1"
+        });
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to create session.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error creating session.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (sessionId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this session?")) return;
+    try {
+      const res = await fetch(`/api/programs/${programId}/sessions/${sessionId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        fetchData();
+      } else {
+        alert("Failed to delete session.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting session.");
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col" style={{ 
       backgroundImage: 'url(/backgrou.png)', 
@@ -83,12 +210,22 @@ export default function SessionsPage() {
                 {program ? `${program.name} - All Sessions` : 'Loading...'}
               </p>
             </div>
-            <button
-              onClick={() => router.back()}
-              className="px-4 py-2 text-sm cursor-pointer sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap"
-            >
-              ← Back
-            </button>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+              {currentUserRole === 'admin' && (
+                <button
+                  onClick={() => setIsCreating(true)}
+                  className="px-4 py-2 bg-[#A65353] hover:bg-[#8B4545] text-white rounded-lg cursor-pointer transition-colors text-sm sm:text-base font-semibold shadow-sm"
+                >
+                  + Create Session
+                </button>
+              )}
+              <button
+                onClick={() => router.back()}
+                className="px-4 py-2 text-sm cursor-pointer sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
 
@@ -105,61 +242,319 @@ export default function SessionsPage() {
               Sessions will appear here once you create follow-up lists
             </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="text-sm text-gray-600 mb-2">
-              Total Sessions: <span className="font-bold">{sessions.length}</span>
-            </div>
-            
-            {sessions.map((session) => (
+        ) : (() => {
+          const totalPages = Math.max(1, Math.ceil(sessions.length / 20));
+          const paginatedSessions = sessions.slice((currentPage - 1) * 20, currentPage * 20);
+          return (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700 font-medium mb-2">
+                Showing {sessions.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, sessions.length)} of <span className="font-bold">{sessions.length}</span> sessions
+              </div>
+              
+              {paginatedSessions.map((session) => (
               <div
                 key={session._id}
-                onClick={() => router.push(`/programs/${programId}/sessions/${session._id}`)}
-                className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden group"
+                className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
               >
-                <div className="p-4 sm:p-6 flex items-center justify-between gap-4">
-                  <div className="flex-grow">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <Calendar className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-base sm:text-lg font-bold text-gray-800">
-                          {session.sessionTopic}
-                        </h3>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          {formatDate(session.sessionDate)}
-                        </p>
-                      </div>
+                {/* Main Row */}
+                <div
+                  onClick={() => toggleExpand(session._id)}
+                  className="flex flex-col lg:flex-row items-start lg:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer relative"
+                >
+                  {/* Left: Topic & Date */}
+                  <div className="flex items-start justify-between w-full lg:w-64 xl:w-80 flex-shrink-0 pr-8 lg:pr-0">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 break-words">
+                        {session.sessionTopic}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                        {formatDate(session.sessionDate)}
+                      </p>
                     </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <User className="w-4 h-4" />
-                      <span className="font-medium">Speaker:</span>
-                      <span>{session.speakerName}</span>
+                    {/* Expand Button for mobile (top right corner) */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand(session._id);
+                      }}
+                      className="p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 lg:hidden absolute top-3 right-3"
+                    >
+                      <ChevronDown 
+                        size={18} 
+                        className={`transform transition-transform ${
+                          expandedSessionIds.includes(session._id) ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Right Side Stats Group */}
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto lg:ml-auto mr-0 lg:mr-2 text-xs sm:text-sm bg-yellow-100/60 lg:bg-transparent p-2.5 lg:p-0 rounded-lg border border-yellow-200/50 lg:border-none">
+                    {/* Speaker */}
+                    <div className="col-span-2 sm:col-span-1 text-gray-700 sm:w-44 truncate" title={session.speakerName}>
+                      <span className="text-gray-500 font-normal">Speaker: </span><span className="font-semibold text-gray-800">{session.speakerName}</span>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2 text-xs sm:text-sm">
-                      <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">
-                        Present: {session.presentCount ?? 0}
-                      </span>
-                      <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">
-                        Absent: {session.absentCount ?? 0}
-                      </span>
+                    {/* Level */}
+                    <div className="text-gray-700 sm:w-20">
+                      <span className="text-gray-500 font-normal">Level: </span><span className="font-semibold">{session.level || 1}</span>
+                    </div>
+
+                    {/* Present */}
+                    <div className="text-green-700 font-semibold sm:w-24">
+                      Present: {session.presentCount ?? 0}
+                    </div>
+
+                    {/* Absent */}
+                    <div className="text-red-700 font-semibold sm:w-24">
+                      Absent: {session.absentCount ?? 0}
                     </div>
                   </div>
 
-                  <div className="flex-shrink-0">
-                    <div className="p-2 rounded-full bg-gray-100 group-hover:bg-purple-100 transition-colors">
-                      <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-purple-600" />
-                    </div>
-                  </div>
+                  {/* Expand Button for Desktop */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpand(session._id);
+                    }}
+                    className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 hidden lg:flex ml-1"
+                  >
+                    <ChevronDown 
+                      size={18} 
+                      className={`transform transition-transform ${
+                        expandedSessionIds.includes(session._id) ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
                 </div>
+
+                {/* Expanded Details Section */}
+                {expandedSessionIds.includes(session._id) && (
+                  <div className="border-t border-yellow-200 p-4 sm:p-6 bg-yellow-100/40 space-y-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Description</h4>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                        {session.description || "No description provided."}
+                      </p>
+                    </div>
+
+                    {/* Maroon Buttons */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={() => router.push(`/programs/${programId}/sessions/${session._id}`)}
+                        className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                      >
+                        Overview
+                      </button>
+
+                      {currentUserRole === 'admin' && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(session)}
+                            className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(session._id)}
+                            className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+            </div>
+          );
+        })()}
       </main>
+
+      {/* Edit Modal */}
+      {editingSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-lg w-full relative space-y-4">
+            <button
+              onClick={() => setEditingSession(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="text-xl font-bold text-gray-800">Edit Session</h3>
+            
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Topic</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.sessionTopic}
+                  onChange={(e) => setEditForm({ ...editForm, sessionTopic: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  required
+                  value={editForm.sessionDate}
+                  onChange={(e) => setEditForm({ ...editForm, sessionDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Speaker</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.speakerName}
+                  onChange={(e) => setEditForm({ ...editForm, speakerName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="4"
+                  required
+                  value={editForm.level}
+                  onChange={(e) => setEditForm({ ...editForm, level: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                <textarea
+                  rows={4}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Add session description..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingSession(null)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-semibold bg-[#A65353] hover:bg-[#8C4343] text-white rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Session Modal */}
+      {isCreating && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-100">
+            <div className="bg-[#A65353] px-6 py-4 flex justify-between items-center text-white">
+              <h3 className="text-lg font-bold">Create New Session</h3>
+              <button onClick={() => setIsCreating(false)} className="hover:bg-[#8C4343] p-1 rounded transition-colors cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Topic</label>
+                <input
+                  type="text"
+                  required
+                  value={createForm.sessionTopic}
+                  onChange={(e) => setCreateForm({ ...createForm, sessionTopic: e.target.value })}
+                  placeholder="e.g. Session"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Date</label>
+                <input
+                  type="date"
+                  required
+                  value={createForm.sessionDate}
+                  onChange={(e) => setCreateForm({ ...createForm, sessionDate: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Speaker</label>
+                <input
+                  type="text"
+                  value={createForm.speakerName}
+                  onChange={(e) => setCreateForm({ ...createForm, speakerName: e.target.value })}
+                  placeholder="Speaker Name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Level</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="4"
+                  required
+                  value={createForm.level}
+                  onChange={(e) => setCreateForm({ ...createForm, level: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  placeholder="Add session description..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] outline-none text-gray-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsCreating(false)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 text-sm font-semibold bg-[#A65353] hover:bg-[#8C4343] text-white rounded-lg shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "Creating..." : "Create Session"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

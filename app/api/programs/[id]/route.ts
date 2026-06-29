@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import Program from "@/models/Program";
 import User from "@/models/User";
 import FollowUp from "@/models/FollowUp";
+import Session from "@/models/Session";
 import jwt from "jsonwebtoken";
 import { TokenPayload } from "@/types/TokenPayload";
 
@@ -72,17 +73,26 @@ export async function DELETE(
     }
 
     // Cascade delete all related data
-    
-    // 1. Remove program from all users' programs array (volunteers, participants, guests)
+
+    // 1. Delete all volunteers and participants associated with this program
+    await User.deleteMany({
+      role: { $in: ["volunteer", "participant"] },
+      programs: id,
+    });
+
+    // 2. Remove program from all remaining users (e.g., admin/guest)
     await User.updateMany(
       { programs: id },
       { $pull: { programs: id } }
     );
 
-    // 2. Delete all followup records associated with this program
+    // 3. Delete all followup records associated with this program
     await FollowUp.deleteMany({ program: id });
 
-    // 3. Delete the program itself
+    // 4. Delete all sessions associated with this program
+    await Session.deleteMany({ programId: id });
+
+    // 5. Delete the program itself
     await Program.findByIdAndDelete(id);
 
     return NextResponse.json(
@@ -139,6 +149,29 @@ export async function PUT(
     }
 
     const { name, description, minAge, maxAge, photo, temple } = await req.json();
+
+    if (name && name !== program.name) {
+      const existingName = await Program.findOne({ name, _id: { $ne: id } });
+      if (existingName) {
+        return NextResponse.json(
+          { error: "Program with this name already exists" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (temple && typeof temple === "string" && temple.trim() !== "") {
+      const existingTemple = await Program.findOne({
+        temple: { $regex: new RegExp(`^${temple.trim()}$`, "i") },
+        _id: { $ne: id }
+      });
+      if (existingTemple) {
+        return NextResponse.json(
+          { error: `A program assigned to temple "${temple}" already exists. Every program's temple name must be unique.` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Update the program
     program.name = name;

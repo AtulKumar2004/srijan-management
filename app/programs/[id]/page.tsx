@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Users, UserCheck, UserPlus, Megaphone, ClipboardList, Calendar } from "lucide-react";
+import { Users, UserCheck, UserPlus, Megaphone, ClipboardList, Calendar, ClipboardCheck, BarChart3 } from "lucide-react";
 
 interface Program {
   _id: string;
@@ -117,15 +117,39 @@ export default function ProgramDetailsPage() {
       color: "#059669",
       bgColor: "#ECFDF5",
       route: `/programs/${programId}/followups`,
-      description: "Manage follow-ups for participants",
-      hideForParticipant: true
+      description: "Manage followups for attendees",
+      hideForParticipant: true,
+      adminOnly: true
+    },
+    {
+      title: "Attendance Form",
+      icon: ClipboardCheck,
+      color: "#D97706",
+      bgColor: "#FFFBEB",
+      route: `/attendance?programId=${programId}`,
+      description: "Mark attendance for sessions",
+      hideForParticipant: false,
+      anyone: true
+    },
+    {
+      title: "analysis",
+      icon: BarChart3,
+      color: "#DB2777",
+      bgColor: "#FDF2F8",
+      route: `/programs/${programId}/analysis`,
+      description: "Monthly graphical analysis",
+      hideForParticipant: true,
+      adminOnly: true
     }
   ];
 
   // Filter cards based on user role
-  const visibleCards = user?.role === "participant" 
-    ? cards.filter(card => !card.hideForParticipant)
-    : cards;
+  const visibleCards = cards.filter(card => {
+    if ((card as any).anyone) return true;
+    if ((card as any).adminOnly && user?.role !== "admin") return false;
+    if (user?.role === "participant" && card.hideForParticipant) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen flex flex-col" style={{ 
@@ -196,7 +220,7 @@ export default function ProgramDetailsPage() {
                     </div>
                   </div>
                   <h3 
-                    className="text-lg sm:text-xl font-bold text-center mb-2"
+                    className="text-lg sm:text-xl font-bold text-center mb-2 capitalize"
                     style={{ color: card.color }}
                   >
                     {card.title}

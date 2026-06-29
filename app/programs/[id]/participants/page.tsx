@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, ChevronDown, UserPlus, Phone } from "lucide-react";
+import { Search, Filter, X, ChevronDown, UserPlus, Phone, Archive } from "lucide-react";
+import Pagination from "@/components/Pagination";
 
 interface Participant {
   _id: string;
@@ -24,6 +25,7 @@ interface Participant {
   registeredBy?: string;
   handledBy?: string;
   isActive?: boolean;
+  isArchived?: boolean;
   createdAt: Date;
 }
 
@@ -31,6 +33,7 @@ interface Volunteer {
   _id: string;
   name: string;
   participantsUnder?: number;
+  level?: number;
 }
 
 interface Program {
@@ -54,6 +57,39 @@ export default function ParticipantsPage() {
   const [expandedParticipant, setExpandedParticipant] = useState<string[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [volunteerNames, setVolunteerNames] = useState<{ [key: string]: string }>({});
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Bulk action states
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [bulkAssignVolunteerId, setBulkAssignVolunteerId] = useState("");
+  const [bulkEditFields, setBulkEditFields] = useState<{ [key: string]: boolean }>({});
+  const [bulkEditValues, setBulkEditValues] = useState<{
+    level: string;
+    grade: string;
+    numberOfRounds: string;
+    isActive: string;
+    homeTown: string;
+    profession: string;
+    connectedToTemple: string;
+    gender: string;
+    maritalStatus: string;
+  }>({
+    level: "",
+    grade: "",
+    numberOfRounds: "",
+    isActive: "true",
+    homeTown: "",
+    profession: "",
+    connectedToTemple: "",
+    gender: "",
+    maritalStatus: ""
+  });
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -63,22 +99,13 @@ export default function ParticipantsPage() {
   const [filterHomeTown, setFilterHomeTown] = useState("");
   const [filterActive, setFilterActive] = useState("");
   const [filterNumberOfRounds, setFilterNumberOfRounds] = useState("");
+  const [filterHandledBy, setFilterHandledBy] = useState("");
 
   // Add participant form state
   const [newParticipant, setNewParticipant] = useState({
     name: "",
     email: "",
     phone: "",
-    profession: "",
-    homeTown: "",
-    address: "",
-    gender: "",
-    connectedToTemple: "",
-    numberOfRounds: 0,
-    level: 0,
-    maritalStatus: "",
-    registeredBy: "",
-    handledBy: "",
   });
 
   useEffect(() => {
@@ -87,10 +114,17 @@ export default function ParticipantsPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [participants, searchTerm, filterGender, filterLevel, filterGrade, filterHomeTown, filterActive, filterNumberOfRounds]);
+  }, [participants, searchTerm, filterGender, filterLevel, filterGrade, filterHomeTown, filterActive, filterNumberOfRounds, filterHandledBy, showArchived]);
 
   const fetchData = async () => {
     try {
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setCurrentUserId(meData.user?._id || '');
+        setCurrentUserRole(meData.user?.role || '');
+      }
+
       // Fetch program details
       const programRes = await fetch(`/api/programs/${programId}`);
       if (programRes.ok) {
@@ -99,7 +133,7 @@ export default function ParticipantsPage() {
       }
 
       // Fetch participants for this program
-      const participantsRes = await fetch(`/api/users/by-role?role=participant&programId=${programId}`);
+      const participantsRes = await fetch(`/api/users/by-role?role=participant&programId=${programId}&includeArchived=true`);
       if (participantsRes.ok) {
         const data = await participantsRes.json();
         const participantsList = data.users || [];
@@ -180,18 +214,27 @@ export default function ParticipantsPage() {
       );
     }
 
-    // Active status filter
-    if (filterActive) {
-      const isActive = filterActive === "active";
-      filtered = filtered.filter(p => p.isActive === isActive);
-    }
+    // Active status / Archived split
+    filtered = filtered.filter(p => showArchived ? p.isArchived === true : !p.isArchived);
+
+
 
     // Number of Rounds filter
     if (filterNumberOfRounds) {
       filtered = filtered.filter(p => p.numberOfRounds === parseInt(filterNumberOfRounds));
     }
 
+    // Handled By filter
+    if (filterHandledBy) {
+      if (filterHandledBy === "unassigned") {
+        filtered = filtered.filter(p => !p.handledBy || p.handledBy === "" || p.handledBy === "unassigned");
+      } else {
+        filtered = filtered.filter(p => p.handledBy === filterHandledBy);
+      }
+    }
+
     setFilteredParticipants(filtered);
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
@@ -202,30 +245,84 @@ export default function ParticipantsPage() {
     setFilterHomeTown("");
     setFilterActive("");
     setFilterNumberOfRounds("");
+    setFilterHandledBy("");
   };
 
-  const handleDeleteParticipant = async (participantId: string, participantName: string) => {
-    if (!confirm(`Are you sure you want to delete ${participantName}? This action cannot be undone.`)) {
+  const handleDeleteParticipant = async (participantId: string, participantName: string, isPermanent = false) => {
+    const promptMsg = isPermanent
+      ? `Are you sure you want to PERMANENTLY delete ${participantName}? This action cannot be undone.`
+      : `Are you sure you want to move ${participantName} to archived list?`;
+    if (!confirm(promptMsg)) {
       return;
     }
 
     try {
-      const res = await fetch(`/api/users/${participantId}`, {
+      const url = isPermanent ? `/api/users/${participantId}?permanent=true` : `/api/users/${participantId}`;
+      const res = await fetch(url, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        setMessage({ type: 'success', text: 'Participant deleted successfully!' });
+        setMessage({ type: 'success', text: isPermanent ? 'Participant permanently deleted!' : 'Participant archived successfully!' });
         fetchData();
         setTimeout(() => setMessage(null), 3000);
       } else {
         const data = await res.json();
-        setMessage({ type: 'error', text: data.error || 'Failed to delete participant' });
+        setMessage({ type: 'error', text: data.error || 'Failed action' });
         setTimeout(() => setMessage(null), 3000);
       }
     } catch (error) {
       console.error("Error deleting participant:", error);
-      setMessage({ type: 'error', text: 'Error deleting participant' });
+      setMessage({ type: 'error', text: 'Error executing action' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const handleUnarchiveParticipant = async (participantId: string, participantName: string) => {
+    if (!confirm(`Are you sure you want to unarchive ${participantName}?`)) return;
+    try {
+      const res = await fetch(`/api/users/${participantId}/update`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: false }),
+      });
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Participant unarchived successfully!' });
+        fetchData();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        const data = await res.json();
+        setMessage({ type: 'error', text: data.error || 'Failed action' });
+        setTimeout(() => setMessage(null), 3000);
+      }
+    } catch (error) {
+      console.error("Error unarchiving participant:", error);
+      setMessage({ type: 'error', text: 'Error executing action' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const handleBulkUnarchiveParticipants = async () => {
+    if (!confirm(`Are you sure you want to unarchive ${selectedParticipants.length} selected participant(s)?`)) return;
+    try {
+      const res = await fetch("/api/participants/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participantIds: selectedParticipants, updates: { isArchived: false } }),
+      });
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Participants unarchived successfully!' });
+        setSelectedParticipants([]);
+        fetchData();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        const data = await res.json();
+        setMessage({ type: 'error', text: data.error || 'Failed action' });
+        setTimeout(() => setMessage(null), 3000);
+      }
+    } catch (error) {
+      console.error("Error bulk unarchiving participants:", error);
+      setMessage({ type: 'error', text: 'Error executing action' });
       setTimeout(() => setMessage(null), 3000);
     }
   };
@@ -256,16 +353,6 @@ export default function ParticipantsPage() {
           name: "",
           email: "",
           phone: "",
-          profession: "",
-          homeTown: "",
-          address: "",
-          gender: "",
-          connectedToTemple: "",
-          numberOfRounds: 0,
-          level: 0,
-          maritalStatus: "",
-          registeredBy: "",
-          handledBy: "",
         });
         fetchData();
         setTimeout(() => setMessage(null), 5000);
@@ -282,6 +369,101 @@ export default function ParticipantsPage() {
     }
   };
 
+  const handleBulkEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBulkUpdating(true);
+    setMessage(null);
+
+    try {
+      const updates: any = {};
+      if (bulkEditFields.level) updates.level = bulkEditValues.level !== "" ? parseInt(bulkEditValues.level) : null;
+      if (bulkEditFields.grade) updates.grade = bulkEditValues.grade;
+      if (bulkEditFields.numberOfRounds) updates.numberOfRounds = bulkEditValues.numberOfRounds !== "" ? parseInt(bulkEditValues.numberOfRounds) : 0;
+      if (bulkEditFields.isActive) updates.isActive = bulkEditValues.isActive === "true";
+      if (bulkEditFields.gender) updates.gender = bulkEditValues.gender;
+      if (bulkEditFields.profession) updates.profession = bulkEditValues.profession;
+      if (bulkEditFields.homeTown) updates.homeTown = bulkEditValues.homeTown;
+      if (bulkEditFields.connectedToTemple) updates.connectedToTemple = bulkEditValues.connectedToTemple;
+      if (bulkEditFields.maritalStatus) updates.maritalStatus = bulkEditValues.maritalStatus;
+
+      if (Object.keys(updates).length === 0) {
+        setMessage({ type: 'error', text: 'Please check at least one field to update' });
+        setBulkUpdating(false);
+        return;
+      }
+
+      const res = await fetch('/api/participants/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantIds: selectedParticipants,
+          updates
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message || 'Participants updated successfully!' });
+        setShowBulkEditModal(false);
+        setSelectedParticipants([]);
+        setBulkEditFields({});
+        fetchData();
+        setTimeout(() => setMessage(null), 4000);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update participants' });
+        setTimeout(() => setMessage(null), 4000);
+      }
+    } catch (err) {
+      console.error("Bulk edit error:", err);
+      setMessage({ type: 'error', text: 'Error performing bulk update' });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  const handleBulkAssignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkAssignVolunteerId) {
+      setMessage({ type: 'error', text: 'Please select a volunteer' });
+      return;
+    }
+    setBulkUpdating(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/participants/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantIds: selectedParticipants,
+          updates: {
+            handledBy: bulkAssignVolunteerId
+          }
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message || 'Volunteer assigned successfully!' });
+        setShowBulkAssignModal(false);
+        setSelectedParticipants([]);
+        setBulkAssignVolunteerId("");
+        fetchData();
+        setTimeout(() => setMessage(null), 4000);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to assign volunteer' });
+        setTimeout(() => setMessage(null), 4000);
+      }
+    } catch (err) {
+      console.error("Bulk assign error:", err);
+      setMessage({ type: 'error', text: 'Error performing bulk assign' });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -293,6 +475,10 @@ export default function ParticipantsPage() {
       </div>
     );
   }
+
+  const itemsPerPage = 20;
+  const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / itemsPerPage));
+  const paginatedParticipants = filteredParticipants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
@@ -313,15 +499,29 @@ export default function ParticipantsPage() {
                 <p className="text-sm sm:text-base text-gray-600 mt-1">Program: {program.name}</p>
               )}
             </div>
-            <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-[#A65353] text-white cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
-              >
-                <UserPlus size={18} className="sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Add Participant</span>
-                <span className="sm:hidden">Add</span>
-              </button>
+            <div className="flex gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
+              {currentUserRole === 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => setShowArchived(!showArchived)}
+                  className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${
+                    showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
+                  }`}
+                >
+                  <Archive size={18} className="sm:w-5 sm:h-5" />
+                  <span>{showArchived ? 'Active List' : `Archived (${participants.filter(p => p.isArchived).length})`}</span>
+                </button>
+              )}
+              {(!showArchived && (currentUserRole === 'admin' || currentUserRole === 'volunteer')) && (
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-[#A65353] text-white cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                >
+                  <UserPlus size={18} className="sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Add Participant</span>
+                  <span className="sm:hidden">Add</span>
+                </button>
+              )}
               <button
                 onClick={() => router.back()}
                 className="px-3 sm:px-4 py-2 text-gray-600 cursor-pointer hover:text-gray-800 font-medium text-sm sm:text-base"
@@ -371,7 +571,7 @@ export default function ParticipantsPage() {
               </button>
 
               {/* Clear Filters */}
-              {(searchTerm || filterGender || filterLevel || filterGrade || filterHomeTown || filterActive || filterNumberOfRounds) && (
+              {(searchTerm || filterGender || filterLevel || filterGrade || filterHomeTown || filterActive || filterNumberOfRounds || filterHandledBy) && (
                 <button
                   onClick={clearFilters}
                   className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base"
@@ -412,8 +612,6 @@ export default function ParticipantsPage() {
                   <option value="2">2</option>
                   <option value="3">3</option>
                   <option value="4">4</option>
-                  <option value="5">5</option>
-                  <option value="6">6</option>
                 </select>
               </div>
 
@@ -428,6 +626,7 @@ export default function ParticipantsPage() {
                   <option value="A">A</option>
                   <option value="B">B</option>
                   <option value="C">C</option>
+                  <option value="D">D</option>
                 </select>
               </div>
 
@@ -442,18 +641,7 @@ export default function ParticipantsPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={filterActive}
-                  onChange={(e) => setFilterActive(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
+
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Number of Rounds</label>
@@ -482,29 +670,147 @@ export default function ParticipantsPage() {
                   <option value="16">16</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Mentor</label>
+                <select
+                  value={filterHandledBy}
+                  onChange={(e) => setFilterHandledBy(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All</option>
+                  <option value="unassigned">Unassigned</option>
+                  {volunteers.map(vol => {
+                    const count = participants.filter(p => p.handledBy === vol._id).length;
+                    const displayCount = vol.participantsUnder !== undefined ? Math.max(vol.participantsUnder || 0, count) : count;
+                    return (
+                      <option key={vol._id} value={vol._id}>
+                        {vol.name} (Level: {vol.level || 'N/A'}, {displayCount} mentees)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Results Count */}
-        <div className="mb-3 sm:mb-4 text-sm sm:text-base text-gray-600 font-bold">
-          Showing {filteredParticipants.length} of {participants.length} participants
+        {/* Results Count & Select All */}
+        <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="text-sm sm:text-base text-gray-600 font-bold">
+            Showing {filteredParticipants.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredParticipants.length)} of {filteredParticipants.length} participants
+          </div>
+          {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
+            const selectableVisible = paginatedParticipants.filter(p => currentUserRole === 'admin' || p.handledBy === currentUserId);
+            const allSelected = selectableVisible.length > 0 && selectableVisible.every(p => selectedParticipants.includes(p._id));
+            return (
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                {selectedParticipants.length > 0 && (
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    <span className="font-semibold text-xs sm:text-sm whitespace-nowrap bg-[#A65353] text-white px-2.5 py-1.5 rounded-lg shadow-sm">
+                      {selectedParticipants.length} Selected
+                    </span>
+                    {!showArchived && (
+                      <button
+                        onClick={() => setShowBulkEditModal(true)}
+                        className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
+                      >
+                        Bulk Edit Fields
+                      </button>
+                    )}
+                    {!showArchived && currentUserRole === 'admin' && (
+                      <button
+                        onClick={() => setShowBulkAssignModal(true)}
+                        className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
+                      >
+                        Bulk Assign Volunteer
+                      </button>
+                    )}
+                    {showArchived && currentUserRole === 'admin' && (
+                      <button
+                        onClick={handleBulkUnarchiveParticipants}
+                        className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm"
+                      >
+                        Unarchive
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedParticipants([])}
+                      className="p-1 hover:bg-gray-200 rounded-lg text-gray-600 transition-colors cursor-pointer"
+                      title="Clear Selection"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-gray-700 cursor-pointer hover:text-gray-900 bg-white px-3 py-1.5 rounded-lg border border-gray-300 shadow-sm transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    disabled={selectableVisible.length === 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const newSet = new Set([...selectedParticipants, ...selectableVisible.map(p => p._id)]);
+                        setSelectedParticipants(Array.from(newSet));
+                      } else {
+                        const visibleIds = new Set(selectableVisible.map(p => p._id));
+                        setSelectedParticipants(selectedParticipants.filter(id => !visibleIds.has(id)));
+                      }
+                    }}
+                    className="w-4 h-4 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30"
+                  />
+                  <span>Select All Visible ({selectableVisible.length})</span>
+                </label>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Participants List */}
         <div className="space-y-2">
-          {filteredParticipants.map((participant) => (
+          {paginatedParticipants.map((participant) => (
             <div
               key={participant._id}
               className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
             >
               {/* Main Row */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-8">
+              <div 
+                onClick={() => setExpandedParticipant(
+                  expandedParticipant.includes(participant._id)
+                    ? expandedParticipant.filter(id => id !== participant._id)
+                    : [...expandedParticipant, participant._id]
+                )}
+                className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer"
+              >
+                {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
+                  const canSelect = currentUserRole === 'admin' || participant.handledBy === currentUserId;
+                  return (
+                    <div className="flex items-center sm:mr-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        disabled={!canSelect}
+                        checked={selectedParticipants.includes(participant._id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedParticipants([...selectedParticipants, participant._id]);
+                          } else {
+                            setSelectedParticipants(selectedParticipants.filter(id => id !== participant._id));
+                          }
+                        }}
+                        title={!canSelect ? "You can only select your mentees" : "Select participant"}
+                        className="w-4 h-4 sm:w-5 sm:h-5 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  );
+                })()}
                 {/* Name */}
-                <div className="w-full sm:w-48 lg:w-56 sm:ml-8">
+                <div className="w-full sm:w-48 lg:w-56 sm:ml-2">
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
                     <button
-                      onClick={() => router.push(`/profile?userId=${participant._id}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/programs/${programId}/participants/${participant._id}`);
+                      }}
                       className="hover:underline cursor-pointer text-left w-full truncate"
                     >
                       {participant.name}
@@ -512,52 +818,56 @@ export default function ParticipantsPage() {
                   </h3>
                 </div>
                 
-                {/* Contact Icons */}
-                <div className="flex items-center gap-6 flex-shrink-0 sm:ml-96">
-                  {participant.phone && (
-                    <>
-                      <a
-                        href={`https://wa.me/${participant.phone.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-green-600 hover:text-green-700"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                        </svg>
-                      </a>
-                      <a
-                        href={`tel:${participant.phone}`}
-                        className="text-red-600 hover:text-red-700"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Phone size={18} />
-                      </a>
-                    </>
-                  )}
+                {/* Right Side Stats Group */}
+                <div className="flex items-center gap-3 sm:gap-4 ml-auto mr-1 sm:mr-2 flex-shrink-0 overflow-x-auto">
+                  {/* Contact Icons */}
+                  <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+                    {participant.phone && (
+                      <>
+                        <a
+                          href={`https://wa.me/${participant.phone.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 hover:text-green-700 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.890-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                          </svg>
+                        </a>
+                        <a
+                          href={`tel:${participant.phone}`}
+                          className="text-red-600 hover:text-red-700 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Phone size={18} />
+                        </a>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Phone Number */}
+                  <div className="text-gray-700 font-medium text-sm w-28 sm:w-32 flex-shrink-0 text-left">
+                    {participant.phone || 'N/A'}
+                  </div>
+
+                  {/* Level */}
+                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
+                    Level: {participant.level || 'N/A'}
+                  </div>
+
+                  {/* Grade */}
+                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
+                    Grade: {participant.grade || 'N/A'}
+                  </div>
+
+                  {/* Handled By */}
+                  <div className="text-gray-700 text-sm w-36 sm:w-48 flex-shrink-0 truncate text-left" title={participant.handledBy ? volunteerNames[participant.handledBy] : ''}>
+                    Mentor: {participant.handledBy && participant.handledBy !== 'unassigned' ? volunteerNames[participant.handledBy] || 'Volunteer' : 'N/A'}
+                  </div>
                 </div>
 
-                {/* Phone Number */}
-                <div className="text-gray-700 font-medium text-sm w-32 flex-shrink-0">
-                  {participant.phone || 'N/A'}
-                </div>
 
-                {/* Level */}
-                <div className="text-gray-700 text-sm w-24 flex-shrink-0">
-                  Level {participant.level || 'N/A'}
-                </div>
-
-                {/* Status */}
-                <div className="flex-shrink-0">
-                  <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap ${
-                    participant.isActive 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {participant.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
 
                 {/* Expand Button */}
                 <button
@@ -566,7 +876,7 @@ export default function ParticipantsPage() {
                       ? expandedParticipant.filter(id => id !== participant._id)
                       : [...expandedParticipant, participant._id]
                   )}
-                  className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-auto"
+                  className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
                 >
                   <ChevronDown 
                     size={18} 
@@ -618,14 +928,7 @@ export default function ParticipantsPage() {
                     <div>
                       <span className="text-xs sm:text-sm font-semibold text-gray-600">Registered By:</span>
                       <span className="ml-2 text-xs sm:text-sm text-gray-800">
-                        {participant.registeredBy ? (volunteerNames[participant.registeredBy] || participant.registeredBy) : 'N/A'}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-xs sm:text-sm font-semibold text-gray-600">Handled By:</span>
-                      <span className="ml-2 text-xs sm:text-sm text-gray-800">
-                        {participant.handledBy ? (volunteerNames[participant.handledBy] || participant.handledBy) : 'N/A'}
+                        {participant.registeredBy && participant.registeredBy !== 'unassigned' ? (volunteerNames[participant.registeredBy] || 'N/A') : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -637,24 +940,49 @@ export default function ParticipantsPage() {
                     >
                       Overview
                     </button>
-                    <button
-                      onClick={() => router.push(`/programs/${programId}/participants/${participant._id}?edit=true`)}
-                      className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteParticipant(participant._id, participant.name)}
-                      className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
-                    >
-                      Delete
-                    </button>
+                    {(currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === currentUserId)) || participant._id === currentUserId) && (
+                      <button
+                        onClick={() => router.push(`/programs/${programId}/participants/${participant._id}?edit=true`)}
+                        className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {showArchived ? (
+                      currentUserRole === 'admin' && (
+                        <>
+                          <button
+                            onClick={() => handleUnarchiveParticipant(participant._id, participant.name)}
+                            className="flex-1 px-4 sm:px-6 py-2 bg-green-700 hover:bg-green-800 text-white cursor-pointer rounded transition-colors text-sm sm:text-base font-bold"
+                          >
+                            Unarchive
+                          </button>
+                          <button
+                            onClick={() => handleDeleteParticipant(participant._id, participant.name, true)}
+                            className="flex-1 px-4 sm:px-6 py-2 bg-red-700 hover:bg-red-800 text-white cursor-pointer rounded transition-colors text-sm sm:text-base font-bold"
+                          >
+                            Permanently Delete
+                          </button>
+                        </>
+                      )
+                    ) : (
+                      (participant._id !== currentUserId && (currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === 'unassigned' || participant.handledBy === currentUserId)))) && (
+                        <button
+                          onClick={() => handleDeleteParticipant(participant._id, participant.name, false)}
+                          className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
+                        >
+                          Delete
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               )}
             </div>
           ))}
         </div>
+
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 
         {filteredParticipants.length === 0 && (
           <div className="text-center py-8 sm:py-12 bg-white rounded-lg shadow-md">
@@ -663,6 +991,300 @@ export default function ParticipantsPage() {
           </div>
         )}
       </main>
+
+
+      {/* Bulk Edit Fields Modal */}
+      {showBulkEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Bulk Edit Fields</h2>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                    Updating {selectedParticipants.length} selected participant(s). Check the box beside any field you want to update.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBulkEditModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkEditSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+
+
+                  {/* Level */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.level}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, level: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Level</span>
+                    </label>
+                    <select
+                      disabled={!bulkEditFields.level}
+                      value={bulkEditValues.level}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, level: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">N/A</option>
+                      <option value="1">Level 1</option>
+                      <option value="2">Level 2</option>
+                      <option value="3">Level 3</option>
+                      <option value="4">Level 4</option>
+                    </select>
+                  </div>
+
+                  {/* Grade */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.grade}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, grade: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Grade</span>
+                    </label>
+                    <select
+                      disabled={!bulkEditFields.grade}
+                      value={bulkEditValues.grade}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, grade: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">N/A</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  </div>
+
+                  {/* Number of Rounds */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.numberOfRounds}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, numberOfRounds: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Number of Rounds</span>
+                    </label>
+                    <select
+                      disabled={!bulkEditFields.numberOfRounds}
+                      value={bulkEditValues.numberOfRounds}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, numberOfRounds: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      {Array.from({ length: 17 }, (_, i) => (
+                        <option key={i} value={i}>{i}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Gender */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.gender}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, gender: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Gender</span>
+                    </label>
+                    <select
+                      disabled={!bulkEditFields.gender}
+                      value={bulkEditValues.gender}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, gender: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {/* Marital Status */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.maritalStatus}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, maritalStatus: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Marital Status</span>
+                    </label>
+                    <select
+                      disabled={!bulkEditFields.maritalStatus}
+                      value={bulkEditValues.maritalStatus}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, maritalStatus: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      <option value="">Select Status</option>
+                      <option value="Unmarried">Unmarried</option>
+                      <option value="Married">Married</option>
+                    </select>
+                  </div>
+
+                  {/* Profession */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.profession}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, profession: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Profession</span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!bulkEditFields.profession}
+                      placeholder="e.g. Engineer"
+                      value={bulkEditValues.profession}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, profession: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                  </div>
+
+                  {/* Home Town */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.homeTown}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, homeTown: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Home Town</span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!bulkEditFields.homeTown}
+                      placeholder="e.g. Mumbai"
+                      value={bulkEditValues.homeTown}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, homeTown: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                  </div>
+
+                  {/* Connected to Temple */}
+                  <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-2 md:col-span-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={!!bulkEditFields.connectedToTemple}
+                        onChange={(e) => setBulkEditFields({ ...bulkEditFields, connectedToTemple: e.target.checked })}
+                        className="w-4 h-4 text-[#A65353] rounded focus:ring-[#A65353] accent-[#A65353]"
+                      />
+                      <span>Connected to Temple</span>
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!bulkEditFields.connectedToTemple}
+                      placeholder="e.g. ISKCON Chowpatty"
+                      value={bulkEditValues.connectedToTemple}
+                      onChange={(e) => setBulkEditValues({ ...bulkEditValues, connectedToTemple: e.target.value })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkEditModal(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={bulkUpdating || Object.values(bulkEditFields).filter(Boolean).length === 0}
+                    className="px-6 py-2 bg-[#A65353] text-white rounded-lg hover:bg-[#8e4545] transition-colors disabled:opacity-50 text-sm font-medium cursor-pointer shadow-md"
+                  >
+                    {bulkUpdating ? 'Updating...' : `Apply Bulk Edit (${Object.values(bulkEditFields).filter(Boolean).length} fields)`}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Volunteer Modal */}
+      {showBulkAssignModal && currentUserRole === 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-800">Bulk Assign Volunteer</h2>
+                <button
+                  onClick={() => setShowBulkAssignModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleBulkAssignSubmit} className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Assigning {selectedParticipants.length} selected participant(s) to a volunteer mentor.
+                </p>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Select Volunteer</label>
+                  <select
+                    value={bulkAssignVolunteerId}
+                    onChange={(e) => setBulkAssignVolunteerId(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#A65353] text-sm"
+                  >
+                    <option value="">-- Select Volunteer --</option>
+                    {volunteers.map(vol => {
+                      const count = participants.filter(p => p.handledBy === vol._id).length;
+                      const displayCount = vol.participantsUnder !== undefined ? Math.max(vol.participantsUnder || 0, count) : count;
+                      return (
+                        <option key={vol._id} value={vol._id}>
+                          {vol.name} (Level: {vol.level || 'N/A'}, {displayCount} mentees)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkAssignModal(false)}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={bulkUpdating || !bulkAssignVolunteerId}
+                    className="px-6 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg transition-colors disabled:opacity-50 text-sm font-medium cursor-pointer shadow-md"
+                  >
+                    {bulkUpdating ? 'Assigning...' : 'Assign Volunteer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Participant Modal */}
       {showAddModal && (
@@ -680,7 +1302,7 @@ export default function ParticipantsPage() {
               </div>
 
               <form onSubmit={handleAddParticipant} className="space-y-3 sm:space-y-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Name *
@@ -709,155 +1331,13 @@ export default function ParticipantsPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone
+                      Phone *
                     </label>
                     <input
                       type="tel"
                       value={newParticipant.phone}
                       onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Gender
-                    </label>
-                    <select
-                      value={newParticipant.gender}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, gender: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Profession
-                    </label>
-                    <input
-                      type="text"
-                      value={newParticipant.profession}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, profession: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Home Town
-                    </label>
-                    <input
-                      type="text"
-                      value={newParticipant.homeTown}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, homeTown: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Connected to Temple
-                    </label>
-                    <input
-                      type="text"
-                      value={newParticipant.connectedToTemple}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, connectedToTemple: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Marital Status
-                    </label>
-                    <select
-                      value={newParticipant.maritalStatus}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, maritalStatus: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Marital Status</option>
-                      <option value="Single">Single</option>
-                      <option value="Married">Married</option>
-                      <option value="Divorced">Divorced</option>
-                      <option value="Widowed">Widowed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Registered By
-                    </label>
-                    <select
-                      value={newParticipant.registeredBy}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, registeredBy: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Volunteer</option>
-                      {volunteers.map((volunteer) => (
-                        <option key={volunteer._id} value={volunteer._id}>
-                          {volunteer.name} ({volunteer.participantsUnder || 0})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Handled By
-                    </label>
-                    <select
-                      value={newParticipant.handledBy}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, handledBy: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Volunteer</option>
-                      {volunteers.map((volunteer) => (
-                        <option key={volunteer._id} value={volunteer._id}>
-                          {volunteer.name} ({volunteer.participantsUnder || 0})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Level
-                    </label>
-                    <input
-                      type="number"
-                      value={newParticipant.level}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, level: parseInt(e.target.value) || 0 })}
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Number of Rounds
-                    </label>
-                    <input
-                      type="number"
-                      value={newParticipant.numberOfRounds}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, numberOfRounds: parseInt(e.target.value) || 0 })}
-                      min="0"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Address
-                    </label>
-                    <textarea
-                      value={newParticipant.address}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, address: e.target.value })}
-                      rows={3}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -64,9 +65,23 @@ type VolunteerCreationRequest = {
   reviewedBy?: { _id: string; name: string };
 };
 
+type MentorshipChangeRequest = {
+  _id: string;
+  status: "pending" | "approved" | "rejected";
+  rejectionReason?: string;
+  createdAt: string;
+  reviewedAt?: string;
+  participant?: { _id: string; name: string; email?: string; phone?: string; role?: string };
+  requestedHandledBy?: { _id: string; name: string; email?: string; phone?: string; level?: number };
+  requestedBy?: { _id: string; name: string; email?: string; phone?: string; level?: number };
+  program?: { _id: string; name: string };
+  programAdmin?: { _id: string; name: string; email?: string };
+  reviewedBy?: { _id: string; name: string };
+};
+
 type NotificationItem = {
   _id: string;
-  requestType: "role-change" | "volunteer-create";
+  requestType: "role-change" | "volunteer-create" | "mentorship-change" | "outreach-followup";
   status: "pending" | "approved" | "rejected";
   rejectionReason?: string;
   createdAt: string;
@@ -75,6 +90,12 @@ type NotificationItem = {
   program?: { _id: string; name: string };
   roleChange?: RoleChangeRequest;
   volunteerCreation?: VolunteerCreationRequest;
+  mentorshipChange?: MentorshipChangeRequest;
+  outreachTask?: {
+    count: number;
+    adminName: string;
+    followUpDate: string;
+  };
 };
 
 function NotificationsContent() {
@@ -130,13 +151,17 @@ function NotificationsContent() {
   };
 
   const fetchRequests = async () => {
-    const [roleRes, volunteerRes] = await Promise.all([
+    const [roleRes, volunteerRes, mentorRes, outreachRes] = await Promise.all([
       fetch("/api/role-change-requests"),
       fetch("/api/volunteer-creation-requests"),
+      fetch("/api/mentorship-change-requests"),
+      fetch("/api/outreach/followups/pending-tasks"),
     ]);
 
     const roleData = await roleRes.json();
     const volunteerData = await volunteerRes.json();
+    const mentorData = await mentorRes.json();
+    const outreachData = outreachRes.ok ? await outreachRes.json().catch(() => ({ tasks: [] })) : { tasks: [] };
 
     if (!roleRes.ok) {
       throw new Error(roleData.error || "Failed to fetch role-change requests");
@@ -144,6 +169,10 @@ function NotificationsContent() {
 
     if (!volunteerRes.ok) {
       throw new Error(volunteerData.error || "Failed to fetch volunteer creation requests");
+    }
+
+    if (!mentorRes.ok) {
+      throw new Error(mentorData.error || "Failed to fetch mentorship change requests");
     }
 
     const roleRequests: NotificationItem[] = (roleData.requests || []).map((request: RoleChangeRequest) => ({
@@ -170,12 +199,26 @@ function NotificationsContent() {
       volunteerCreation: request,
     }));
 
-    setRequests([...roleRequests, ...volunteerRequests]);
+    const mentorRequests: NotificationItem[] = (mentorData.requests || []).map((request: MentorshipChangeRequest) => ({
+      _id: request._id,
+      requestType: "mentorship-change",
+      status: request.status,
+      rejectionReason: request.rejectionReason,
+      createdAt: request.createdAt,
+      reviewedAt: request.reviewedAt,
+      requestedBy: request.requestedBy,
+      program: request.program,
+      mentorshipChange: request,
+    }));
+
+    const outreachRequests: NotificationItem[] = outreachData.tasks || [];
+
+    setRequests([...roleRequests, ...volunteerRequests, ...mentorRequests, ...outreachRequests]);
   };
 
   const handleAction = async (
     requestId: string,
-    requestType: "role-change" | "volunteer-create",
+    requestType: "role-change" | "volunteer-create" | "mentorship-change" | "outreach-followup",
     action: "approve" | "reject"
   ) => {
     try {
@@ -189,7 +232,9 @@ function NotificationsContent() {
       const endpoint =
         requestType === "role-change"
           ? `/api/role-change-requests/${requestId}`
-          : `/api/volunteer-creation-requests/${requestId}`;
+          : requestType === "volunteer-create"
+          ? `/api/volunteer-creation-requests/${requestId}`
+          : `/api/mentorship-change-requests/${requestId}`;
 
       const res = await fetch(endpoint, {
         method: "PATCH",
@@ -271,24 +316,75 @@ function NotificationsContent() {
         ) : (
           <div className="space-y-4">
             {sortedRequests.map((request) => {
+              if (request.requestType === "outreach-followup" && request.outreachTask) {
+                return (
+                  <div key={request._id} className="bg-emerald-50 rounded-xl shadow-md p-5 border border-emerald-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">📞</span>
+                        <h3 className="font-bold text-emerald-900 text-lg">Assigned Outreach Follow-ups</h3>
+                      </div>
+                      <p className="text-emerald-800 text-sm mt-1">
+                        You have <strong>{request.outreachTask.count} contacts</strong> assigned by <strong>{request.outreachTask.adminName}</strong> to follow up for session date <strong>{request.outreachTask.followUpDate}</strong>.
+                      </p>
+                    </div>
+                    <a
+                      href="/outreach/followups"
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors shadow flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      Take Followups →
+                    </a>
+                  </div>
+                );
+              }
+
               const isFocused = focusRequestId === request._id;
               const isExpanded = expandedRequestIds.includes(request._id);
               const roleRequest = request.roleChange;
               const volunteerRequest = request.volunteerCreation;
+              const mentorRequest = request.mentorshipChange;
               const isRoleChange = request.requestType === "role-change";
-              const summaryTitle = isRoleChange
-                ? `${roleRequest?.participant?.name || "Unknown Participant"} - ${roleRequest?.currentRole || "participant"} to ${roleRequest?.requestedRole || "volunteer"}`
-                : `${volunteerRequest?.name || "Unknown Candidate"} - add as volunteer`;
+              const isMentorshipChange = request.requestType === "mentorship-change";
+              const participantObj = isRoleChange ? roleRequest?.participant : isMentorshipChange ? mentorRequest?.participant : null;
+              const participantId = participantObj?._id;
+              const participantName = participantObj?.name || "Unknown Participant";
+              const programId = request.program?._id || request.program;
+
+              const profileUrl = participantId && programId
+                ? (isRoleChange && roleRequest?.currentRole === "volunteer"
+                    ? `/programs/${programId}/volunteers/${participantId}`
+                    : `/programs/${programId}/participants/${participantId}`)
+                : null;
+
+              const actionSuffix = isRoleChange
+                ? `${roleRequest?.currentRole || "participant"} to ${roleRequest?.requestedRole || "volunteer"}`
+                : isMentorshipChange
+                ? `assign mentor: ${mentorRequest?.requestedHandledBy?.name || "Volunteer"}`
+                : `add as volunteer`;
 
               return (
                 <div
                   key={request._id}
                   className={`bg-white rounded-xl shadow-md border p-5 ${isFocused ? "border-[#A65353] ring-2 ring-[#E6C7A0]" : "border-orange-100"}`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div 
+                    onClick={() => toggleExpanded(request._id)}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 cursor-pointer"
+                  >
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-800">
-                        {summaryTitle}
+                      <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                        {profileUrl ? (
+                          <Link
+                            href={profileUrl}
+                            className="text-indigo-600 hover:text-indigo-800 hover:underline font-bold"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {participantName}
+                          </Link>
+                        ) : (
+                          <span>{request.requestType === "volunteer-create" ? volunteerRequest?.name || "Unknown Candidate" : participantName}</span>
+                        )}
+                        <span className="text-gray-700">- {actionSuffix}</span>
                       </h2>
                       <p className="text-sm text-gray-600 mt-1">Program: {request.program?.name || "N/A"}</p>
                     </div>
@@ -328,8 +424,19 @@ function NotificationsContent() {
                         </div>
                       )}
 
-                      {!isRoleChange && volunteerRequest && (
+                      {!isRoleChange && !request.mentorshipChange && volunteerRequest && (
                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
+                          <p><strong>Raised At:</strong> {new Date(request.createdAt).toLocaleString()}</p>
+                          {request.reviewedAt && <p><strong>Reviewed At:</strong> {new Date(request.reviewedAt).toLocaleString()}</p>}
+                          {request.rejectionReason && <p><strong>Reason:</strong> {request.rejectionReason}</p>}
+                        </div>
+                      )}
+
+                      {request.requestType === "mentorship-change" && mentorRequest && (
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
+                          <p><strong>Participant Email:</strong> {mentorRequest.participant?.email || "N/A"}</p>
+                          <p><strong>Participant Phone:</strong> {mentorRequest.participant?.phone || "N/A"}</p>
+                          <p><strong>Proposed Mentor:</strong> {mentorRequest.requestedHandledBy?.name || "N/A"}</p>
                           <p><strong>Raised At:</strong> {new Date(request.createdAt).toLocaleString()}</p>
                           {request.reviewedAt && <p><strong>Reviewed At:</strong> {new Date(request.reviewedAt).toLocaleString()}</p>}
                           {request.rejectionReason && <p><strong>Reason:</strong> {request.rejectionReason}</p>}

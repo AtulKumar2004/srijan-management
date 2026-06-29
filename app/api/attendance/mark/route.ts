@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Attendance from "@/models/Attendance";
+import User from "@/models/User";
 import jwt from "jsonwebtoken";
 
 export async function POST(req: NextRequest) {
@@ -15,6 +16,18 @@ export async function POST(req: NextRequest) {
         { error: "Program, participant, date, and level are required" },
         { status: 400 }
       );
+    }
+
+    // Ensure user is enrolled in the program and update level
+    const user = await User.findById(participantId);
+    if (user) {
+      if (!user.programs) user.programs = [];
+      const progStr = programId.toString();
+      if (!user.programs.map((p: any) => p.toString()).includes(progStr)) {
+        user.programs.push(programId);
+      }
+      user.level = level;
+      await user.save();
     }
 
     // Check if attendance already marked for this participant on this date

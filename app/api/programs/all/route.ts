@@ -8,7 +8,8 @@ export async function GET() {
     await connectDB();
 
     const programs = await Program.find({})
-      .select('name temple')
+      .select('name temple createdBy')
+      .populate('createdBy', 'name')
       .sort({ createdAt: -1 })
       .exec();
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import Program from "@/models/Program";
 import jwt from "jsonwebtoken";
 
 export async function GET(req: NextRequest) {
@@ -21,6 +22,39 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const programsParam = searchParams.get("programs");
+    const allForAdmin = searchParams.get("allForAdmin");
+
+    if (allForAdmin === "true" || (decoded.role === "admin" && !programsParam)) {
+      // Find all programs belonging to or created by this admin
+      const adminUser = await User.findById(decoded.userId);
+      const adminPrograms = await Program.find({ createdBy: decoded.userId }).select("_id");
+      
+      const progIds: string[] = adminPrograms.map(p => p._id.toString());
+      if (adminUser?.programs && Array.isArray(adminUser.programs)) {
+        progIds.push(...adminUser.programs);
+      }
+      const uniqueProgIds = Array.from(new Set(progIds));
+
+      const queryOr: any[] = [
+        { _id: decoded.userId },
+        { registeredBy: decoded.userId },
+        { registeredBy: adminUser?.name }
+      ];
+      if (uniqueProgIds.length > 0) {
+        queryOr.push({ programs: { $in: uniqueProgIds } });
+      }
+
+      const volunteers = await User.find({
+        role: { $in: ["volunteer", "admin"] },
+        isArchived: { $ne: true },
+        $or: queryOr
+      }).select("_id name email").sort({ name: 1 });
+
+      return NextResponse.json({
+        success: true,
+        volunteers
+      }, { status: 200 });
+    }
 
     if (!programsParam) {
       return NextResponse.json({ error: "Programs parameter is required" }, { status: 400 });
@@ -31,9 +65,9 @@ export async function GET(req: NextRequest) {
     // Find volunteers who are in any of these programs
     const volunteers = await User.find({
       role: { $in: ["volunteer", "admin"] },
-      isActive: true,
+      isArchived: { $ne: true },
       programs: { $in: programIds }
-    }).select("_id name email");
+    }).select("_id name email").sort({ name: 1 });
 
     return NextResponse.json({
       success: true,

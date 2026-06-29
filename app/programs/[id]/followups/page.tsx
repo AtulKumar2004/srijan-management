@@ -4,34 +4,23 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, Users, UserPlus, Phone, Filter, ChevronDown, Save, RefreshCw, Trash2 } from "lucide-react";
+import { Calendar, Filter, ChevronLeft, ChevronRight, User, Phone, Save, CheckCircle2, AlertCircle } from "lucide-react";
+import Pagination from "@/components/Pagination";
 
-interface FollowUp {
+interface FollowUpItem {
   _id: string;
   user: {
     _id: string;
     name: string;
     email: string;
     phone?: string;
+    role: string;
+    level?: number;
+    grade?: string;
     profession?: string;
-  };
-  assignedVolunteer?: {
-    _id: string;
-    name: string;
   };
   status: string;
   remarks: string;
-  calledBy?: {
-    _id: string;
-    name: string;
-  };
-  calledAt?: Date;
-}
-
-interface Volunteer {
-  _id: string;
-  name: string;
-  email: string;
 }
 
 export default function FollowUpsPage() {
@@ -39,52 +28,110 @@ export default function FollowUpsPage() {
   const params = useParams();
   const programId = params.id as string;
   
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [datesLoading, setDatesLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [showCalendarPopup, setShowCalendarPopup] = useState(false);
+
+  const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
+  const [sessionLevel, setSessionLevel] = useState<number | null>(null);
+  const [noSession, setNoSession] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
-  const [sessionTopic, setSessionTopic] = useState("");
-  const [speakerName, setSpeakerName] = useState("");
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [expandedFollowUp, setExpandedFollowUp] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
-  const [selectedVolunteerId, setSelectedVolunteerId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [edits, setEdits] = useState<{ [key: string]: { status: string; remarks: string } }>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   const statusOptions = ["Coming", "Not Coming", "May Come", "Not Answered", "Not Called"];
 
   useEffect(() => {
-    fetchVolunteers();
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUserRole(data.user?.role || "");
+        }
+      } catch (err) {
+        console.error("Auth check failed", err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    if (selectedDate) {
+    const fetchSessionDates = async () => {
+      if (!programId) return;
+      try {
+        setDatesLoading(true);
+        const res = await fetch(`/api/programs/${programId}/sessions`);
+        if (res.ok) {
+          const data = await res.json();
+          const dates: string[] = Array.from(
+            new Set(
+              (data.sessions || []).map((s: any) =>
+                new Date(s.sessionDate).toISOString().split("T")[0]
+              )
+            )
+          );
+          setAvailableDates(dates);
+          if (dates.length > 0) {
+            setSelectedDate(dates[0]);
+            setCalendarMonth(new Date(dates[0]));
+          } else {
+            setSelectedDate(new Date().toISOString().split("T")[0]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch session dates", err);
+      } finally {
+        setDatesLoading(false);
+      }
+    };
+    fetchSessionDates();
+  }, [programId]);
+
+  useEffect(() => {
+    if (selectedDate && currentUserRole === "admin") {
       fetchFollowUps();
     }
-  }, [selectedDate]);
-
-  const fetchVolunteers = async () => {
-    try {
-      const res = await fetch(`/api/users/by-role?role=volunteer&programId=${programId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setVolunteers(data.users || []);
-      }
-    } catch (error) {
-      console.error("Error fetching volunteers:", error);
-    }
-  };
+  }, [selectedDate, programId, currentUserRole]);
 
   const fetchFollowUps = async () => {
     setLoading(true);
+    setNoSession(false);
     try {
-      const res = await fetch(
-        `/api/followups?programId=${programId}&date=${selectedDate}&userType=participant`
-      );
+      const res = await fetch(`/api/followups?programId=${programId}&date=${selectedDate}`);
       if (res.ok) {
         const data = await res.json();
-        setFollowUps(data.followUps || []);
+        if (data.noSession) {
+          setNoSession(true);
+          setFollowUps([]);
+          setSessionLevel(null);
+        } else {
+          setNoSession(false);
+          const list: FollowUpItem[] = data.followUps || [];
+          setFollowUps(list);
+          setSessionLevel(data.sessionLevel || null);
+
+          const initialEdits: any = {};
+          list.forEach(item => {
+            initialEdits[item.user._id] = {
+              status: item.status || "Not Called",
+              remarks: item.remarks || ""
+            };
+          });
+          setEdits(initialEdits);
+        }
       } else {
         setFollowUps([]);
       }
@@ -96,122 +143,109 @@ export default function FollowUpsPage() {
     }
   };
 
-  const handleCreateFollowUpList = async () => {
-    if (!sessionTopic.trim() || !speakerName.trim()) {
-      setMessage({ type: 'error', text: 'Session topic and speaker name are required' });
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
+  const handleSave = async (userId: string) => {
+    const edit = edits[userId];
+    if (!edit || !selectedDate) return;
 
-    setLoading(true);
+    setSavingId(userId);
     try {
-      const res = await fetch("/api/followups/create-for-date", {
+      const res = await fetch("/api/followups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           programId,
-          followUpDate: selectedDate,
-          userType: "participant",
-          volunteerIds: selectedVolunteers,
-          sessionTopic: sessionTopic.trim(),
-          speakerName: speakerName.trim()
+          userId,
+          date: selectedDate,
+          status: edit.status,
+          remarks: edit.remarks
         })
       });
 
-      const data = await res.json();
-      
       if (res.ok) {
-        setMessage({ type: 'success', text: data.message });
-        setShowCreateModal(false);
-        setSelectedVolunteers([]);
-        setSessionTopic("");
-        setSpeakerName("");
-        fetchFollowUps();
-      } else {
-        setMessage({ type: 'error', text: data.error });
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error creating follow-up list' });
-    } finally {
-      setLoading(false);
-      setTimeout(() => setMessage(null), 3000);
-    }
-  };
-
-  const handleUpdateFollowUp = async (followUpId: string, status: string, remarks: string) => {
-    try {
-      const res = await fetch(`/api/followups/${followUpId}/update`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, remarks })
-      });
-
-      if (res.ok) {
-        setMessage({ type: 'success', text: 'Follow-up updated successfully' });
-        fetchFollowUps();
-        setTimeout(() => setMessage(null), 2000);
-      } else {
-        const data = await res.json();
-        setMessage({ type: 'error', text: data.error });
+        setSavedId(userId);
+        setTimeout(() => setSavedId(null), 2500);
+        setMessage({ type: 'success', text: "Remark & status saved successfully!" });
         setTimeout(() => setMessage(null), 3000);
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error updating follow-up' });
-      setTimeout(() => setMessage(null), 3000);
-    }
-  };
-
-  const handleDeleteFollowUpList = async () => {
-    if (!window.confirm(`Are you sure you want to delete the follow-up list for ${selectedDate}? This will also delete the session for this date.`)) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/followups/delete-for-date?programId=${programId}&date=${selectedDate}`, {
-        method: "DELETE"
-      });
-
-      const data = await res.json();
-      
-      if (res.ok) {
-        setMessage({ type: 'success', text: data.message });
         fetchFollowUps();
       } else {
-        setMessage({ type: 'error', text: data.error });
+        const err = await res.json();
+        setMessage({ type: 'error', text: err.error || "Failed to save" });
       }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error deleting follow-up list' });
+    } catch (err) {
+      console.error("Save failed", err);
+      setMessage({ type: 'error', text: "Network error while saving" });
     } finally {
-      setLoading(false);
-      setTimeout(() => setMessage(null), 3000);
+      setSavingId(null);
     }
   };
 
-  let filteredFollowUps = followUps;
-  
-  // Filter by volunteer
-  if (selectedVolunteerId === 'unassigned') {
-    filteredFollowUps = filteredFollowUps.filter(f => !f.assignedVolunteer);
-  } else if (selectedVolunteerId) {
-    filteredFollowUps = filteredFollowUps.filter(f => 
-      f.assignedVolunteer?._id === selectedVolunteerId
-    );
-  }
-  
-  // Filter by status
-  if (filterStatus) {
-    filteredFollowUps = filteredFollowUps.filter(f => f.status === filterStatus);
-  }
+  // Calendar logic
+  const getDaysInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    const firstDayIndex = date.getDay();
+
+    const prevMonthDays = new Date(year, month, 0).getDate();
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      days.push({ dayNumber: prevMonthDays - i, isCurrentMonth: false, dateStr: "" });
+    }
+
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    for (let i = 1; i <= lastDay; i++) {
+      const mStr = String(month + 1).padStart(2, "0");
+      const dStr = String(i).padStart(2, "0");
+      days.push({ dayNumber: i, isCurrentMonth: true, dateStr: `${year}-${mStr}-${dStr}` });
+    }
+    return days;
+  };
+
+  const filteredFollowUps = followUps.filter(f => {
+    if (!filterStatus) return true;
+    const currentStatus = edits[f.user._id]?.status || f.status;
+    return currentStatus === filterStatus;
+  });
+
+  const currentStatuses = followUps.map(f => edits[f.user._id]?.status || f.status || "Not Called");
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDate, filterStatus]);
 
   const stats = {
     total: followUps.length,
-    coming: followUps.filter(fu => fu.status === "Coming").length,
-    notComing: followUps.filter(fu => fu.status === "Not Coming").length,
-    mayCome: followUps.filter(fu => fu.status === "May Come").length,
-    notAnswered: followUps.filter(fu => fu.status === "Not Answered").length,
-    notCalled: followUps.filter(fu => fu.status === "Not Called").length,
+    coming: currentStatuses.filter(s => s === "Coming").length,
+    notComing: currentStatuses.filter(s => s === "Not Coming").length,
+    mayCome: currentStatuses.filter(s => s === "May Come").length,
+    notAnswered: currentStatuses.filter(s => s === "Not Answered").length,
+    notCalled: currentStatuses.filter(s => s === "Not Called").length,
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#A65353]"></div>
+      </div>
+    );
+  }
+
+  if (currentUserRole !== "admin") {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Header />
+        <main className="flex-grow container mx-auto px-4 py-16 flex flex-col items-center justify-center max-w-lg text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
+          <p className="text-gray-600 mb-6">This Follow-ups section is restricted to Program Admins only.</p>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-2.5 bg-[#A65353] text-white rounded-lg font-semibold hover:bg-[#8B4545] transition-colors cursor-pointer"
+          >
+            ← Go Back
+          </button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ 
@@ -223,15 +257,15 @@ export default function FollowUpsPage() {
       
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 max-w-7xl">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6 border-l-4 border-[#A65353]">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">Follow-ups</h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage follow-ups for participants</p>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage follow-ups for attendees</p>
             </div>
             <button
               onClick={() => router.back()}
-              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap"
+              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap cursor-pointer"
             >
               ← Back
             </button>
@@ -240,40 +274,127 @@ export default function FollowUpsPage() {
 
         {/* Message */}
         {message && (
-          <div className={`mb-4 p-3 sm:p-4 rounded-lg ${
-            message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          <div className={`mb-4 p-3 sm:p-4 rounded-lg flex items-center gap-2 ${
+            message.type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'
           }`}>
-            {message.text}
+            <span className="font-semibold">{message.text}</span>
           </div>
         )}
 
         {/* Controls */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Date Picker */}
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="inline w-4 h-4 mr-1" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
+            {/* Date Picker Tool */}
+            <div className="relative">
+              <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#A65353]" />
                 Select Date
               </label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showCalendarPopup && selectedDate) {
+                    setCalendarMonth(new Date(selectedDate));
+                  }
+                  setShowCalendarPopup(!showCalendarPopup);
+                }}
+                className={`w-full sm:w-64 px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm font-semibold cursor-pointer shadow-sm flex items-center justify-between transition-all ${
+                  availableDates.includes(selectedDate)
+                    ? "bg-emerald-50 border-emerald-400 text-emerald-900"
+                    : "bg-amber-50 border-amber-400 text-amber-900"
+                }`}
+              >
+                <span>{selectedDate || "Select Date"}</span>
+                <span className="text-xs opacity-75">▼</span>
+              </button>
+
+              {/* Custom Calendar Popup */}
+              {showCalendarPopup && (
+                <div className="absolute left-0 mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                    <span className="font-bold text-gray-800 text-sm">
+                      {calendarMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}
+                        className="p-1 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date())}
+                        className="px-2 py-0.5 text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors cursor-pointer"
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}
+                        className="p-1 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors cursor-pointer"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 mb-2 text-center">
+                    {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+                      <span key={day} className="text-[11px] font-bold text-gray-400 py-1">{day}</span>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {getDaysInMonth(calendarMonth.getFullYear(), calendarMonth.getMonth()).map((dayObj, idx) => {
+                      if (!dayObj.isCurrentMonth) {
+                        return <div key={idx} className="p-2"></div>;
+                      }
+                      const isSession = availableDates.includes(dayObj.dateStr);
+                      const isSelected = selectedDate === dayObj.dateStr;
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(dayObj.dateStr);
+                            setShowCalendarPopup(false);
+                          }}
+                          className={`p-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center relative ${
+                            isSelected && isSession
+                              ? "bg-emerald-600 text-white shadow-md font-bold ring-2 ring-emerald-300"
+                              : isSelected
+                              ? "bg-[#A65353] text-white shadow-md font-bold"
+                              : isSession
+                              ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 border border-emerald-400 font-bold shadow-sm"
+                              : "text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          {dayObj.dayNumber}
+                          {isSession && (
+                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-0.5 ${isSelected ? 'bg-white' : 'bg-emerald-600'}`}></span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Filter Status */}
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                <Filter className="inline w-4 h-4 mr-1" />
+              <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                <Filter className="w-4 h-4 text-[#A65353]" />
                 Filter by Status
               </label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full sm:w-64 px-3 py-2.5 text-sm font-semibold border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] bg-white cursor-pointer shadow-sm"
               >
                 <option value="">All</option>
                 {statusOptions.map(status => (
@@ -281,449 +402,171 @@ export default function FollowUpsPage() {
                 ))}
               </select>
             </div>
-
-            {/* Create Button */}
-            <div className="flex items-end gap-2">
-              {followUps.length > 0 && (
-                <button
-                  onClick={handleDeleteFollowUpList}
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-red-600 cursor-pointer text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2"
-                >
-                  <Trash2 size={18} />
-                  Delete List
-                </button>
-              )}
-              <button
-                onClick={() => setShowCreateModal(true)}
-                disabled={followUps.length > 0}
-                className="flex-1 px-4 py-2 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2"
-              >
-                <UserPlus size={18} />
-                Create List
-              </button>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 mt-4 sm:mt-6">
-            <div className="bg-gray-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-gray-800">{stats.total}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total</div>
-            </div>
-            <div className="bg-green-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-green-800">{stats.coming}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Coming</div>
-            </div>
-            <div className="bg-red-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-red-800">{stats.notComing}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Coming</div>
-            </div>
-            <div className="bg-yellow-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-yellow-800">{stats.mayCome}</div>
-              <div className="text-xs sm:text-sm text-gray-600">May Come</div>
-            </div>
-            <div className="bg-orange-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-orange-800">{stats.notAnswered}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Answered</div>
-            </div>
-            <div className="bg-blue-100 p-2 sm:p-3 rounded-lg text-center">
-              <div className="text-lg sm:text-2xl font-bold text-blue-800">{stats.notCalled}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Not Called</div>
-            </div>
           </div>
         </div>
 
-        {/* Volunteer Filter Cards */}
-        {followUps.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Filter by Volunteer</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-              {/* All Volunteers Card */}
-              <button
-                onClick={() => setSelectedVolunteerId(null)}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  selectedVolunteerId === null
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-gray-800 text-sm sm:text-base">All Volunteers</div>
-                    <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                      {followUps.length} follow-up{followUps.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {followUps.length}
-                  </div>
-                </div>
-              </button>
-
-              {/* Unassigned Card */}
-              {(() => {
-                const unassignedCount = followUps.filter(f => !f.assignedVolunteer).length;
-                return unassignedCount > 0 ? (
-                  <button
-                    onClick={() => setSelectedVolunteerId('unassigned')}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedVolunteerId === 'unassigned'
-                        ? 'border-orange-600 bg-orange-50'
-                        : 'border-gray-300 bg-white hover:border-orange-400 hover:bg-orange-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-gray-800 text-sm sm:text-base">Unassigned</div>
-                        <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                          {unassignedCount} follow-up{unassignedCount !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                      <div className="text-2xl font-bold text-orange-600">
-                        {unassignedCount}
-                      </div>
-                    </div>
-                  </button>
-                ) : null;
-              })()}
-
-              {/* Individual Volunteer Cards */}
-              {volunteers
-                .map(volunteer => {
-                  const assignedCount = followUps.filter(
-                    f => f.assignedVolunteer?._id === volunteer._id
-                  ).length;
-                  return { volunteer, count: assignedCount };
-                })
-                .filter(({ count }) => count > 0)
-                .map(({ volunteer, count }) => (
-                  <button
-                    key={volunteer._id}
-                    onClick={() => setSelectedVolunteerId(volunteer._id)}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedVolunteerId === volunteer._id
-                        ? 'border-green-600 bg-green-50'
-                        : 'border-gray-300 bg-white hover:border-green-400 hover:bg-green-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-gray-800 text-sm sm:text-base truncate">
-                          {volunteer.name}
-                        </div>
-                        <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                          {count} follow-up{count !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                      <div className="text-2xl font-bold text-green-600 ml-2">
-                        {count}
-                      </div>
-                    </div>
-                  </button>
-                ))
-              }
-            </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-slate-800">{stats.total}</div>
+            <div className="text-xs text-slate-500 font-medium mt-1">Total</div>
           </div>
-        )}
+          <div className="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-emerald-800">{stats.coming}</div>
+            <div className="text-xs text-emerald-600 font-medium mt-1">Coming</div>
+          </div>
+          <div className="bg-rose-50 rounded-xl p-4 text-center border border-rose-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-rose-800">{stats.notComing}</div>
+            <div className="text-xs text-rose-600 font-medium mt-1">Not Coming</div>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-amber-800">{stats.mayCome}</div>
+            <div className="text-xs text-amber-600 font-medium mt-1">May Come</div>
+          </div>
+          <div className="bg-orange-50 rounded-xl p-4 text-center border border-orange-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-orange-800">{stats.notAnswered}</div>
+            <div className="text-xs text-orange-600 font-medium mt-1">Not Answered</div>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-4 text-center border border-blue-100 shadow-sm">
+            <div className="text-2xl font-extrabold text-blue-800">{stats.notCalled}</div>
+            <div className="text-xs text-blue-600 font-medium mt-1">Not Called</div>
+          </div>
+        </div>
 
-        {/* Follow-ups List */}
-        {loading ? (
-          <div className="text-center py-8">
-            <img src="/mrdanga.png" alt="Loading" className="w-20 h-20 animate-spin mx-auto" />
-          </div>
-        ) : filteredFollowUps.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 text-center">
-            <p className="text-gray-600 text-sm sm:text-base">
-              No follow-ups found for participants on {selectedDate}
-            </p>
-            <p className="text-gray-500 text-xs sm:text-sm mt-2">
-              Click "Create List" to generate a follow-up list for this date
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredFollowUps.map((followUp, index) => (
-              <FollowUpCard
-                key={followUp._id}
-                followUp={followUp}
-                index={index}
-                programId={programId}
-                expanded={expandedFollowUp === followUp._id}
-                onToggle={() => setExpandedFollowUp(expandedFollowUp === followUp._id ? null : followUp._id)}
-                onUpdate={handleUpdateFollowUp}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Create Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
-                Create Follow-up List
+        {/* List Section */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+          <div className="p-4 sm:p-6 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-800">
+                People List {sessionLevel !== null && <span className="text-sm font-normal text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full ml-2">Session Level: {sessionLevel}</span>}
               </h2>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                Fill in session details and select volunteers to assign follow-ups. The system will automatically divide participants equally among selected volunteers.
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                Showing {filteredFollowUps.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredFollowUps.length)} of {filteredFollowUps.length} matching people
               </p>
-
-              {/* Session Fields */}
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Session Topic *
-                  </label>
-                  <input
-                    type="text"
-                    value={sessionTopic}
-                    onChange={(e) => setSessionTopic(e.target.value)}
-                    placeholder="Enter session topic"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Speaker Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={speakerName}
-                    onChange={(e) => setSpeakerName(e.target.value)}
-                    placeholder="Enter speaker name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Volunteers Selection */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assign Volunteers (Optional)
-                </label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {volunteers.map(volunteer => (
-                    <label
-                      key={volunteer._id}
-                      className="flex items-center p-2 sm:p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedVolunteers.includes(volunteer._id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedVolunteers([...selectedVolunteers, volunteer._id]);
-                          } else {
-                            setSelectedVolunteers(selectedVolunteers.filter(id => id !== volunteer._id));
-                          }
-                        }}
-                        className="mr-3"
-                      />
-                      <div>
-                        <div className="font-medium text-sm sm:text-base">{volunteer.name}</div>
-                        <div className="text-xs sm:text-sm text-gray-600">{volunteer.email}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleCreateFollowUpList}
-                  disabled={loading || !sessionTopic.trim() || !speakerName.trim()}
-                  className="flex-1 px-4 py-2 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] disabled:bg-gray-400 transition-colors text-sm sm:text-base"
-                >
-                  {loading ? 'Creating...' : 'Create List'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setSelectedVolunteers([]);
-                    setSessionTopic("");
-                    setSpeakerName("");
-                  }}
-                  className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors text-sm sm:text-base"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
+            <span className="text-sm font-bold text-gray-600">Total: {filteredFollowUps.length}</span>
           </div>
-        )}
+
+          {(() => {
+            const itemsPerPage = 20;
+            const totalPages = Math.max(1, Math.ceil(filteredFollowUps.length / itemsPerPage));
+            const paginatedFollowUps = filteredFollowUps.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+            return (
+              <>
+                {loading ? (
+            <div className="p-12 text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#A65353] mx-auto mb-4"></div>
+              <p className="text-gray-500 font-medium">Loading follow-ups...</p>
+            </div>
+          ) : noSession ? (
+            <div className="p-12 text-center">
+              <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+              <p className="text-gray-800 font-bold text-base mb-1">No Session Found on {selectedDate}</p>
+              <p className="text-gray-500 text-sm max-w-md mx-auto">Please select a highlighted green session date from the calendar above to view matching people.</p>
+            </div>
+          ) : filteredFollowUps.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 italic">
+              No people found matching Level {sessionLevel} on this date.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {paginatedFollowUps.map((item) => {
+                const u = item.user;
+                const edit = edits[u._id] || { status: item.status, remarks: item.remarks };
+                const isSaving = savingId === u._id;
+                const isSaved = savedId === u._id;
+
+                return (
+                  <div key={u._id} className="p-4 sm:p-6 hover:bg-gray-50/60 transition-colors flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                    {/* User Info */}
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-[#A65353]/10 flex items-center justify-center shrink-0 mt-1 font-bold text-[#A65353]">
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/programs/${programId}/${u.role === 'volunteer' ? 'volunteers' : 'participants'}/${u._id}`)}
+                            className="font-bold text-base text-[#A65353] hover:underline cursor-pointer text-left truncate"
+                          >
+                            {u.name}
+                          </button>
+                          <span className="px-2 py-0.5 text-xs font-bold bg-gray-200 text-gray-800 rounded-full capitalize">
+                            {u.role}
+                          </span>
+                          <span className="text-xs text-gray-500 font-medium">Level {u.level || 1}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs sm:text-sm text-gray-600 mt-1 flex-wrap">
+                          {u.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone size={14} className="text-gray-400" /> {u.phone}
+                            </span>
+                          )}
+                          {u.profession && <span>• {u.profession}</span>}
+                          {u.grade && <span>• Grade: {u.grade}</span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Controls (Status & Remarks) */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto shrink-0">
+                      <select
+                        value={edit.status}
+                        onChange={(e) => setEdits({ ...edits, [u._id]: { ...edit, status: e.target.value } })}
+                        className={`px-3 py-2 border rounded-xl text-sm font-semibold focus:ring-2 focus:ring-[#A65353] cursor-pointer ${
+                          edit.status === "Coming" ? "bg-green-50 border-green-300 text-green-800" :
+                          edit.status === "Not Coming" ? "bg-red-50 border-red-300 text-red-800" :
+                          edit.status === "May Come" ? "bg-amber-50 border-amber-300 text-amber-800" :
+                          "bg-white border-gray-300 text-gray-700"
+                        }`}
+                      >
+                        {statusOptions.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+
+                      <div className="flex items-center gap-2 flex-1 sm:w-64">
+                        <input
+                          type="text"
+                          value={edit.remarks}
+                          onChange={(e) => setEdits({ ...edits, [u._id]: { ...edit, remarks: e.target.value } })}
+                          placeholder="Add remark..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSave(u._id)}
+                          disabled={isSaving}
+                          className={`p-2 rounded-xl text-white font-semibold transition-all cursor-pointer shrink-0 flex items-center justify-center ${
+                            isSaved ? "bg-green-600" : "bg-[#A65353] hover:bg-[#8B4545] disabled:bg-gray-400"
+                          }`}
+                          title="Save Remark & Status"
+                        >
+                          {isSaving ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div>
+                          ) : isSaved ? (
+                            <CheckCircle2 size={20} />
+                          ) : (
+                            <Save size={20} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+          </>
+        );
+      })()}
+        </div>
       </main>
 
       <Footer />
-    </div>
-  );
-}
-
-// Follow-up Card Component
-function FollowUpCard({ 
-  followUp, 
-  index, 
-  programId,
-  expanded, 
-  onToggle, 
-  onUpdate 
-}: { 
-  followUp: FollowUp;
-  index: number;
-  programId: string;
-  expanded: boolean;
-  onToggle: () => void;
-  onUpdate: (id: string, status: string, remarks: string) => void;
-}) {
-  const [status, setStatus] = useState(followUp.status);
-  const [remarks, setRemarks] = useState(followUp.remarks);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  const statusOptions = ["Coming", "Not Coming", "May Come", "Not Answered", "Not Called"];
-
-  useEffect(() => {
-    const changed = status !== followUp.status || remarks !== followUp.remarks;
-    setHasChanges(changed);
-  }, [status, remarks, followUp]);
-
-  const handleSave = () => {
-    onUpdate(followUp._id, status, remarks);
-    setHasChanges(false);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Coming": return "bg-green-100 text-green-800";
-      case "Not Coming": return "bg-red-100 text-red-800";
-      case "May Come": return "bg-yellow-100 text-yellow-800";
-      case "Not Answered": return "bg-orange-100 text-orange-800";
-      case "Busy": return "bg-purple-100 text-purple-800";
-      case "Not Sure": return "bg-blue-100 text-blue-800";
-      case "Not Called": return "bg-gray-100 text-gray-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  return (
-    <div className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden">
-      {/* Main Row */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-2 sm:gap-0">
-        {/* Serial Number & Name */}
-        <div className="flex items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
-          <span className="text-sm sm:text-base font-bold text-gray-600 flex-shrink-0">#{index + 1}</span>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm sm:text-base font-semibold text-gray-800 truncate">
-              <a 
-                href={`/programs/${programId}/participants/${followUp.user._id}`}
-                className="hover:underline cursor-pointer"
-              >
-                {followUp.user.name}
-              </a>
-            </h3>
-            {followUp.user.phone && (
-              <div className="text-xs sm:text-sm text-gray-600 flex items-center gap-1">
-                <Phone size={14} />
-                {followUp.user.phone}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Info */}
-        <div className="flex items-center justify-between w-full sm:w-auto gap-2">
-          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-            {/* Assigned To */}
-            {followUp.assignedVolunteer && (
-              <span className="text-gray-600">
-                Assigned: <span className="font-medium">{followUp.assignedVolunteer.name}</span>
-              </span>
-            )}
-            
-            {/* Status Badge */}
-            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap ${getStatusColor(followUp.status)}`}>
-              {followUp.status}
-            </span>
-          </div>
-
-          {/* Expand Button */}
-          <button
-            onClick={onToggle}
-            className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
-          >
-            <ChevronDown 
-              size={18} 
-              className={`transform transition-transform ${expanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded Details */}
-      {expanded && (
-        <div className="border-t border-yellow-300 bg-yellow-50 px-4 sm:px-6 py-3 sm:py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
-            {/* User Info */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-              <p className="text-sm text-gray-800 break-all">{followUp.user.email}</p>
-            </div>
-            {followUp.user.profession && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Profession</label>
-                <p className="text-sm text-gray-800">{followUp.user.profession}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Update Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {statusOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Remarks</label>
-              <input
-                type="text"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Add remarks..."
-                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Save Button */}
-          {hasChanges && (
-            <button
-              onClick={handleSave}
-              className="w-full sm:w-auto px-4 py-2 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] transition-colors font-medium text-sm flex items-center justify-center gap-2"
-            >
-              <Save size={16} />
-              Save Changes
-            </button>
-          )}
-
-          {/* Call History */}
-          {followUp.calledBy && (
-            <div className="mt-3 pt-3 border-t border-gray-300 text-xs text-gray-600">
-              Last updated by <span className="font-medium">{followUp.calledBy.name}</span>
-              {followUp.calledAt && (
-                <span suppressHydrationWarning> on {new Date(followUp.calledAt).toLocaleString()}</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

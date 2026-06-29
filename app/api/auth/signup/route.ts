@@ -68,6 +68,69 @@ export async function POST(req: Request) {
         const normEmail = String(email).trim().toLowerCase();
         const normPhone = phone ? String(phone).trim() : undefined;
 
+        const archivedUser = await User.findOne({
+            isArchived: true,
+            $or: [
+                { email: normEmail },
+                ...(normPhone ? [{ phone: normPhone }] : [])
+            ]
+        });
+
+        if (archivedUser) {
+            const hashed = await bcrypt.hash(password, 10);
+            archivedUser.isArchived = false;
+            archivedUser.password = hashed;
+            archivedUser.name = name || archivedUser.name;
+            archivedUser.email = normEmail;
+            if (normPhone) archivedUser.phone = normPhone;
+            if (profession !== undefined) archivedUser.profession = profession;
+            if (homeTown !== undefined) archivedUser.homeTown = homeTown;
+            if (connectedToTemple !== undefined) archivedUser.connectedToTemple = connectedToTemple;
+            if (joinedAt !== undefined) archivedUser.joinedAt = new Date(joinedAt);
+            if (gender !== undefined) archivedUser.gender = gender;
+            if (dateOfBirth !== undefined) archivedUser.dateOfBirth = new Date(dateOfBirth);
+            if (address !== undefined) archivedUser.address = address;
+            if (howDidYouHearAboutUs !== undefined) archivedUser.howDidYouHearAboutUs = howDidYouHearAboutUs;
+            if (numberOfRounds !== undefined) archivedUser.numberOfRounds = Number(numberOfRounds);
+            if (level !== undefined) archivedUser.level = level;
+            if (grade !== undefined) archivedUser.grade = grade;
+
+            if (archivedUser.role === "volunteer") {
+                archivedUser.participantsUnder = 0;
+                await User.updateMany(
+                    { handledBy: { $in: [archivedUser._id, String(archivedUser._id)] } },
+                    { $set: { handledBy: "unassigned" } }
+                );
+            } else if (archivedUser.role === "participant") {
+                archivedUser.role = "participant";
+            }
+
+            await archivedUser.save();
+
+            const otpCode = generateOtp();
+            const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+
+            await Otp.create({
+                target: normEmail,
+                code: otpCode,
+                channel: "email",
+                purpose: "signup",
+                expiresAt,
+            });
+
+            await sendOtpToTarget(normEmail, "email", otpCode);
+
+            return NextResponse.json(
+                {
+                    message: "Archived account found. A verification code has been sent to your email to restore and activate account.",
+                    next: "verify-otp",
+                    target: "email",
+                    userId: archivedUser._id,
+                },
+                { status: 200 }
+            );
+        }
+
         // 1) Does a full account already exist with this email?
         const existingByEmail = await User.findOne({ email: normEmail });
 
@@ -82,11 +145,9 @@ export async function POST(req: Request) {
 
             // existingByEmail exists but has NO password: this is a pre-created record
             // We must require OTP verification before activating / merging.
-            // Create/store OTP targeted to email (or phone if available)
             const otpCode = generateOtp();
             const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-            // Save OTP (if multiple OTPs per target allowed, that's ok)  
             await Otp.create({
                 target: normEmail,
                 code: otpCode,
@@ -95,15 +156,14 @@ export async function POST(req: Request) {
                 expiresAt,
             });
 
-            // send OTP (replace with real provider)
             await sendOtpToTarget(normEmail, "email", otpCode);
 
-            // respond with pending activation message (do not include OTP in response in prod)
             return NextResponse.json(
                 {
                     message: "A verification code has been sent to your email. Verify to activate account.",
                     next: "verify-otp",
                     target: "email",
+                    userId: existingByEmail._id,
                 },
                 { status: 200 }
             );
@@ -114,44 +174,39 @@ export async function POST(req: Request) {
             const existingByPhone = await User.findOne({ phone: normPhone });
             if (existingByPhone) {
                 if (existingByPhone.password) {
-                    // phone belongs to active account -> require login
                     return NextResponse.json(
                         { error: "Phone number already registered. Please login." },
                         { status: 400 }
                     );
                 }
 
-                // phone exists but no password -> send OTP to phone for verification (activation)
+                // phone exists but no password -> send OTP to email for verification (activation)
                 const otpCode = generateOtp();
                 const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
                 await Otp.create({
-                    target: normPhone,
+                    target: normEmail,
                     code: otpCode,
-                    channel: "phone",
+                    channel: "email",
                     purpose: "signup",
                     expiresAt,
                 });
 
-                await sendOtpToTarget(normPhone, "phone", otpCode);
+                await sendOtpToTarget(normEmail, "email", otpCode);
 
                 return NextResponse.json(
                     {
-                        message: "A verification code has been sent to your phone. Verify to activate account.",
+                        message: "A verification code has been sent to your email. Verify to activate account.",
                         next: "verify-otp",
-                        target: "phone",
+                        target: "email",
+                        userId: existingByPhone._id,
                     },
                     { status: 200 }
                 );
             }
         }
 
-        // 3) No existing records by email or phone -> create new user record as GUEST but do NOT set password active until verification
-        // Two approaches possible:
-        //  a) Create user with hashed password immediately but require OTP verification before issuing tokens (we'll use this).
-        //  b) Create a temporary "pending" record and only create user after OTP verification.
-        //
-        // We'll hash the password and create the user but keep it "unverified" (isActive=false) until OTP verification.
+        // 3) No existing records by email or phone -> create new user record as GUEST
         const hashed = await bcrypt.hash(password, 10);
 
         const newUser = await User.create({
@@ -176,9 +231,9 @@ export async function POST(req: Request) {
             isActive: false, // IMPORTANT: not active until OTP verified
         });
 
-        // Create OTP: prefer phone if present, else email
-        const channel: "phone" | "email" = normPhone ? "phone" : "email";
-        const target = channel === "phone" ? normPhone! : normEmail;
+        // Create OTP strictly via email
+        const channel: "email" = "email";
+        const target = normEmail;
         const otpCode = generateOtp();
         const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
@@ -192,10 +247,9 @@ export async function POST(req: Request) {
 
         await sendOtpToTarget(target, channel, otpCode);
 
-        // Return pending message (frontend should call verify-otp API next)
         return NextResponse.json(
             {
-                message: "Signup created. Verify the code sent to your phone/email to activate the account.",
+                message: "Signup created. Verify the code sent to your email to activate the account.",
                 next: "verify-otp",
                 target: channel,
                 userId: newUser._id,

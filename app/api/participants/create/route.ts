@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       numberOfRounds,
       connectedToTemple,
       level,
+      grade,
       joinedAt,
       handledBy,        // optional override
       registeredBy,     // optional override
@@ -66,8 +67,48 @@ export async function POST(req: NextRequest) {
       $or: [{ email }, { phone: { $in: [phone, normalizedPhone] } }] 
     });
     if (existing) {
+      if (existing.isArchived) {
+        existing.isArchived = false;
+        existing.isActive = true;
+        existing.name = name || existing.name;
+        existing.email = email || existing.email;
+        existing.phone = normalizedPhone || existing.phone;
+        if (profession !== undefined) existing.profession = profession;
+        if (homeTown !== undefined) existing.homeTown = homeTown;
+        if (address !== undefined) existing.address = address;
+        if (gender !== undefined) existing.gender = gender;
+        if (numberOfRounds !== undefined) existing.numberOfRounds = numberOfRounds;
+        if (connectedToTemple !== undefined) existing.connectedToTemple = connectedToTemple;
+        if (level !== undefined) existing.level = level;
+        if (grade !== undefined) existing.grade = grade;
+        if (maritalStatus !== undefined) existing.maritalStatus = maritalStatus;
+        if (programs !== undefined) existing.programs = programs;
+        if (handledBy !== undefined) existing.handledBy = handledBy;
+        if (registeredBy !== undefined) existing.registeredBy = registeredBy;
+
+        if (existing.role === "volunteer") {
+          existing.participantsUnder = 0;
+          await User.updateMany(
+            { handledBy: { $in: [existing._id, String(existing._id)] } },
+            { $set: { handledBy: "unassigned" } }
+          );
+        } else if (existing.role === "participant") {
+          existing.role = "participant";
+        }
+
+        await existing.save();
+
+        const obj = existing.toObject();
+        delete obj.password;
+
+        return NextResponse.json(
+          { message: "Archived user restored successfully", user: obj },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "A user with this email or phone already exists" },
+        { error: "A user with this email or phone already exists. Email and phone must be unique." },
         { status: 400 }
       );
     }
@@ -87,6 +128,7 @@ export async function POST(req: NextRequest) {
       numberOfRounds,
       connectedToTemple,
       level,
+      grade,
       joinedAt,
       maritalStatus,
       programs,

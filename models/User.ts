@@ -29,6 +29,7 @@ export interface IUser extends Document {
   programs?: string[]; // Array of programIds user is enrolled in
 
   isActive?: boolean;
+  isArchived?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +73,7 @@ const UserSchema = new Schema<IUser>(
     programs: [String],
 
     isActive: { type: Boolean, default: false }, // Only active after OTP verification
+    isArchived: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
