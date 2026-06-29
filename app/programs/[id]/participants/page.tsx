@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, ChevronDown, UserPlus, Phone, Archive } from "lucide-react";
+import { Search, Filter, X, ChevronDown, UserPlus, Phone, Archive, Download, Trash2 } from "lucide-react";
 import Pagination from "@/components/Pagination";
+import { useModalStore } from "@/store/modalStore";
 
 interface Participant {
   _id: string;
@@ -45,6 +46,7 @@ export default function ParticipantsPage() {
   const router = useRouter();
   const params = useParams();
   const programId = params.id as string;
+  const { showConfirm, showAlert } = useModalStore();
   
   const [program, setProgram] = useState<Program | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -278,6 +280,31 @@ export default function ParticipantsPage() {
     }
   };
 
+  const handleBulkDeleteParticipants = async (isPermanent = false) => {
+    if (selectedParticipants.length === 0) return;
+    const promptMsg = isPermanent
+      ? `Are you sure you want to PERMANENTLY delete ${selectedParticipants.length} selected participant(s)? This action cannot be undone.`
+      : `Are you sure you want to move ${selectedParticipants.length} selected participant(s) to archived list?`;
+    if (!confirm(promptMsg)) return;
+
+    try {
+      await Promise.all(
+        selectedParticipants.map(id => {
+          const url = isPermanent ? `/api/users/${id}?permanent=true` : `/api/users/${id}`;
+          return fetch(url, { method: 'DELETE' });
+        })
+      );
+      setMessage({ type: 'success', text: isPermanent ? `${selectedParticipants.length} participant(s) permanently deleted!` : `${selectedParticipants.length} participant(s) archived successfully!` });
+      setSelectedParticipants([]);
+      fetchData();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error("Error in bulk delete:", error);
+      setMessage({ type: 'error', text: 'Error executing bulk action' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
   const handleUnarchiveParticipant = async (participantId: string, participantName: string) => {
     if (!confirm(`Are you sure you want to unarchive ${participantName}?`)) return;
     try {
@@ -480,6 +507,73 @@ export default function ParticipantsPage() {
   const totalPages = Math.max(1, Math.ceil(filteredParticipants.length / itemsPerPage));
   const paginatedParticipants = filteredParticipants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const handleDownloadCSV = () => {
+    if (filteredParticipants.length === 0) {
+      alert("No data available to download.");
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Role",
+      "Profession",
+      "Home Town",
+      "Connected To Temple",
+      "Gender",
+      "Date of Birth",
+      "Address",
+      "Level",
+      "Grade",
+      "Number of Rounds",
+      "Mentor Name",
+      "Active Status",
+      "Archived Status",
+      "Created At"
+    ];
+
+    const rows = filteredParticipants.map(p => {
+      const mentorName = p.handledBy && p.handledBy !== 'unassigned'
+        ? (volunteerNames[p.handledBy] || 'N/A')
+        : 'N/A';
+      const dob = p.dateOfBirth ? new Date(p.dateOfBirth).toLocaleDateString() : '';
+      const created = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '';
+
+      return [
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${(p.email || '').replace(/"/g, '""')}"`,
+        `"${(p.phone || '').replace(/"/g, '""')}"`,
+        `"${(p.role || '').replace(/"/g, '""')}"`,
+        `"${(p.profession || '').replace(/"/g, '""')}"`,
+        `"${(p.homeTown || '').replace(/"/g, '""')}"`,
+        `"${(p.connectedToTemple || '').replace(/"/g, '""')}"`,
+        `"${(p.gender || '').replace(/"/g, '""')}"`,
+        `"${dob}"`,
+        `"${(p.address || '').replace(/"/g, '""')}"`,
+        `"${p.level !== undefined ? p.level : ''}"`,
+        `"${(p.grade || '').replace(/"/g, '""')}"`,
+        `"${p.numberOfRounds !== undefined ? p.numberOfRounds : ''}"`,
+        `"${mentorName.replace(/"/g, '""')}"`,
+        `"${p.isActive ? 'Active' : 'Inactive'}"`,
+        `"${p.isArchived ? 'Archived' : 'Not Archived'}"`,
+        `"${created}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const fileName = showArchived ? "archived_participants.csv" : "participants_list.csv";
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
       backgroundImage: 'url(/backgrou.png)', 
@@ -500,6 +594,14 @@ export default function ParticipantsPage() {
               )}
             </div>
             <div className="flex gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
+              <button
+                onClick={handleDownloadCSV}
+                className="flex-1 sm:flex-none flex items-center justify-center cursor-pointer gap-2 px-3 sm:px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white font-bold rounded-lg transition-colors text-sm sm:text-base shadow"
+              >
+                <Download size={18} className="sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Download Data</span>
+                <span className="sm:hidden">CSV</span>
+              </button>
               {currentUserRole === 'admin' && (
                 <button
                   type="button"
@@ -726,13 +828,31 @@ export default function ParticipantsPage() {
                         Bulk Assign Volunteer
                       </button>
                     )}
-                    {showArchived && currentUserRole === 'admin' && (
+                    {!showArchived && (
                       <button
-                        onClick={handleBulkUnarchiveParticipants}
-                        className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm"
+                        onClick={() => handleBulkDeleteParticipants(false)}
+                        className="px-3 py-1.5 bg-[#A65353] hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
                       >
-                        Unarchive
+                        <Trash2 size={14} />
+                        Delete ({selectedParticipants.length})
                       </button>
+                    )}
+                    {showArchived && currentUserRole === 'admin' && (
+                      <>
+                        <button
+                          onClick={handleBulkUnarchiveParticipants}
+                          className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm"
+                        >
+                          Unarchive
+                        </button>
+                        <button
+                          onClick={() => handleBulkDeleteParticipants(true)}
+                          className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                        >
+                          <Trash2 size={14} />
+                          Permanently Delete ({selectedParticipants.length})
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => setSelectedParticipants([])}
@@ -780,46 +900,71 @@ export default function ParticipantsPage() {
                     ? expandedParticipant.filter(id => id !== participant._id)
                     : [...expandedParticipant, participant._id]
                 )}
-                className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer"
+                className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between px-3 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-2 sm:gap-4 cursor-pointer"
               >
-                {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-                  const canSelect = currentUserRole === 'admin' || participant.handledBy === currentUserId;
-                  return (
-                    <div className="flex items-center sm:mr-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        disabled={!canSelect}
-                        checked={selectedParticipants.includes(participant._id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedParticipants([...selectedParticipants, participant._id]);
-                          } else {
-                            setSelectedParticipants(selectedParticipants.filter(id => id !== participant._id));
-                          }
-                        }}
-                        title={!canSelect ? "You can only select your mentees" : "Select participant"}
-                        className="w-4 h-4 sm:w-5 sm:h-5 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30 disabled:cursor-not-allowed"
-                      />
+                {/* Top Header Row on mobile / Left group on desktop */}
+                <div className="flex items-center justify-between gap-2 w-full xl:w-auto min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 xl:flex-initial">
+                    {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
+                      const canSelect = currentUserRole === 'admin' || participant.handledBy === currentUserId;
+                      return (
+                        <div className="flex items-center flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            disabled={!canSelect}
+                            checked={selectedParticipants.includes(participant._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedParticipants([...selectedParticipants, participant._id]);
+                              } else {
+                                setSelectedParticipants(selectedParticipants.filter(id => id !== participant._id));
+                              }
+                            }}
+                            title={!canSelect ? "You can only select your mentees" : "Select participant"}
+                            className="w-4 h-4 sm:w-5 sm:h-5 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                      );
+                    })()}
+                    {/* Name */}
+                    <div className="min-w-0 flex-1 xl:w-48 2xl:w-56">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/programs/${programId}/participants/${participant._id}`);
+                          }}
+                          className="hover:underline cursor-pointer text-left w-full truncate block"
+                        >
+                          {participant.name}
+                        </button>
+                      </h3>
                     </div>
-                  );
-                })()}
-                {/* Name */}
-                <div className="w-full sm:w-48 lg:w-56 sm:ml-2">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/programs/${programId}/participants/${participant._id}`);
-                      }}
-                      className="hover:underline cursor-pointer text-left w-full truncate"
-                    >
-                      {participant.name}
-                    </button>
-                  </h3>
+                  </div>
+
+                  {/* Expand Button for mobile */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedParticipant(
+                        expandedParticipant.includes(participant._id)
+                          ? expandedParticipant.filter(id => id !== participant._id)
+                          : [...expandedParticipant, participant._id]
+                      );
+                    }}
+                    className="xl:hidden p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+                  >
+                    <ChevronDown 
+                      size={18} 
+                      className={`transform transition-transform ${
+                        expandedParticipant.includes(participant._id) ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
                 </div>
                 
-                {/* Right Side Stats Group */}
-                <div className="flex items-center gap-3 sm:gap-4 ml-auto mr-1 sm:mr-2 flex-shrink-0 overflow-x-auto">
+                {/* Right Side Stats Group (Wraps cleanly on mobile) */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-gray-700 xl:ml-auto mr-1 sm:mr-2 pl-6 sm:pl-0">
                   {/* Contact Icons */}
                   <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
                     {participant.phone && (
@@ -847,36 +992,37 @@ export default function ParticipantsPage() {
                   </div>
 
                   {/* Phone Number */}
-                  <div className="text-gray-700 font-medium text-sm w-28 sm:w-32 flex-shrink-0 text-left">
+                  <div className="font-medium text-gray-800 xl:w-32 flex-shrink-0">
                     {participant.phone || 'N/A'}
                   </div>
 
                   {/* Level */}
-                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
-                    Level: {participant.level || 'N/A'}
+                  <div className="xl:w-24 flex-shrink-0">
+                    <span className="text-gray-500 xl:hidden">Level: </span>{participant.level ? (String(participant.level).startsWith('Level') ? participant.level : `Level ${participant.level}`) : 'N/A'}
                   </div>
 
                   {/* Grade */}
-                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
-                    Grade: {participant.grade || 'N/A'}
+                  <div className="xl:w-24 flex-shrink-0">
+                    <span className="text-gray-500 xl:hidden">Grade: </span>{participant.grade || 'N/A'}
                   </div>
 
                   {/* Handled By */}
-                  <div className="text-gray-700 text-sm w-36 sm:w-48 flex-shrink-0 truncate text-left" title={participant.handledBy ? volunteerNames[participant.handledBy] : ''}>
-                    Mentor: {participant.handledBy && participant.handledBy !== 'unassigned' ? volunteerNames[participant.handledBy] || 'Volunteer' : 'N/A'}
+                  <div className="text-gray-700 xl:w-48 flex-shrink-0 truncate" title={participant.handledBy ? volunteerNames[participant.handledBy] : ''}>
+                    <span className="text-gray-500 xl:hidden">Mentor: </span><span className="font-medium">{participant.handledBy && participant.handledBy !== 'unassigned' ? volunteerNames[participant.handledBy] || 'Volunteer' : 'N/A'}</span>
                   </div>
                 </div>
 
-
-
-                {/* Expand Button */}
+                {/* Expand Button for desktop */}
                 <button
-                  onClick={() => setExpandedParticipant(
-                    expandedParticipant.includes(participant._id)
-                      ? expandedParticipant.filter(id => id !== participant._id)
-                      : [...expandedParticipant, participant._id]
-                  )}
-                  className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedParticipant(
+                      expandedParticipant.includes(participant._id)
+                        ? expandedParticipant.filter(id => id !== participant._id)
+                        : [...expandedParticipant, participant._id]
+                    );
+                  }}
+                  className="hidden xl:block p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
                 >
                   <ChevronDown 
                     size={18} 

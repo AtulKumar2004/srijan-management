@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, Save, X } from "lucide-react";
+import { Plus, Search, Filter, Save, X, Trash2 } from "lucide-react";
 
 interface RemarkItem {
   _id: string;
@@ -26,6 +26,7 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
   const [newRemarkText, setNewRemarkText] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRemarks, setSelectedRemarks] = useState<string[]>([]);
 
   const fetchRemarks = async () => {
     try {
@@ -34,6 +35,7 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
       if (res.ok) {
         const data = await res.json();
         setRemarks(data.remarks || []);
+        setSelectedRemarks([]);
       }
     } catch (err) {
       console.error("Failed to fetch remarks", err);
@@ -117,6 +119,22 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedRemarks.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedRemarks.length} selected remark(s)?`)) return;
+
+    try {
+      await Promise.all(selectedRemarks.map(id => 
+        fetch(`/api/users/${userId}/remarks?followUpId=${id}`, { method: "DELETE" })
+      ));
+      setMessage({ type: "success", text: `${selectedRemarks.length} remark(s) deleted successfully!` });
+      fetchRemarks();
+    } catch (err) {
+      setMessage({ type: "error", text: "Error deleting remarks" });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const filteredRemarks = remarks.filter((item) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -139,7 +157,7 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
 
       {/* Top Controls matching Image 1 */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-transparent pt-2 pb-1">
-        <div>
+        <div className="flex items-center gap-2 flex-wrap">
           {canEdit && (
             <button
               onClick={() => {
@@ -151,6 +169,15 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
               className="px-5 py-2.5 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-all text-sm font-bold shadow-md cursor-pointer whitespace-nowrap"
             >
               Add Remark
+            </button>
+          )}
+          {canEdit && selectedRemarks.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-2.5 bg-[#A65353] text-white rounded-lg hover:bg-red-700 transition-all text-sm font-bold shadow-md cursor-pointer whitespace-nowrap flex items-center gap-1.5"
+            >
+              <Trash2 size={16} />
+              Delete ({selectedRemarks.length})
             </button>
           )}
         </div>
@@ -194,10 +221,20 @@ export default function ProfileRemarkTab({ userId, programId, canEdit }: Profile
             >
               <div className="flex justify-between items-start mb-3 gap-4">
                 <div className="flex items-start gap-3.5">
-                  <input
-                    type="checkbox"
-                    className="mt-1 rounded border-gray-400 text-[#A65353] focus:ring-[#A65353] w-4 h-4 cursor-pointer"
-                  />
+                  {canEdit && (
+                    <input
+                      type="checkbox"
+                      checked={selectedRemarks.includes(item._id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRemarks([...selectedRemarks, item._id]);
+                        } else {
+                          setSelectedRemarks(selectedRemarks.filter(id => id !== item._id));
+                        }
+                      }}
+                      className="mt-1 rounded border-gray-400 text-[#A65353] focus:ring-[#A65353] w-4 h-4 cursor-pointer flex-shrink-0"
+                    />
+                  )}
                   <div className="text-gray-900 font-medium text-sm sm:text-base leading-relaxed">
                     {item.remarks}
                   </div>

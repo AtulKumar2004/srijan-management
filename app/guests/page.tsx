@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Search, Filter, X, ChevronDown, Phone } from "lucide-react";
+import { useModalStore } from "@/store/modalStore";
 
 interface Guest {
   _id: string;
@@ -25,6 +26,7 @@ interface Guest {
 
 export default function GuestsPage() {
   const router = useRouter();
+  const { showConfirm, showAlert } = useModalStore();
   
   const [guests, setGuests] = useState<Guest[]>([]);
   const [filteredGuests, setFilteredGuests] = useState<Guest[]>([]);
@@ -228,6 +230,35 @@ export default function GuestsPage() {
       setTimeout(() => setMessage(null), 4000);
     } finally {
       setBulkUpdating(false);
+    }
+  };
+
+  const handleDeleteGuest = async (guestId: string, guestName: string) => {
+    const confirmed = await showConfirm({
+      title: "Delete Guest",
+      message: `Are you sure you want to delete ${guestName}? This action will permanently remove their guest profile.`,
+      type: "danger",
+      confirmText: "Delete Guest"
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/users/${guestId}?permanent=true`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Guest deleted successfully!' });
+        setExpandedGuest(expandedGuest.filter(id => id !== guestId));
+        fetchGuests();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        const data = await res.json();
+        await showAlert({ title: "Delete Failed", message: data.error || 'Failed to delete guest', type: "danger" });
+      }
+    } catch (error) {
+      console.error("Error deleting guest:", error);
+      await showAlert({ title: "Error", message: 'Error executing action', type: "danger" });
     }
   };
 
@@ -562,9 +593,7 @@ export default function GuestsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Are you sure you want to delete ${guest.name}?`)) {
-                                // Add delete functionality here
-                              }
+                              handleDeleteGuest(guest._id, guest.name);
                             }}
                             className="px-3 sm:px-4 py-2 sm:py-3 bg-[#A65353] hover:bg-[#8B4545] text-white rounded-lg transition-colors font-medium text-xs sm:text-base"
                           >

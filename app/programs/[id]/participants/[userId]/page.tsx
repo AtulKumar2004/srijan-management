@@ -61,7 +61,7 @@ function ParticipantDetailContent() {
   const [activeTab, setActiveTab] = useState<'profile' | 'remark' | 'attendance'>('profile');
 
   const isSelf = Boolean(currentUserId && userId && String(currentUserId) === String(userId));
-  const canViewRemarkTab = (!isSelf && currentUserRole === 'volunteer') || currentUserRole === 'admin';
+  const canViewRemarkTab = currentUserRole === 'admin' || (!isSelf && currentUserRole === 'volunteer');
 
   useEffect(() => {
     fetchCurrentUser();
@@ -329,7 +329,7 @@ function ParticipantDetailContent() {
           </div>
         )}
 
-        {activeTab === 'remark' && (
+        {canViewRemarkTab && activeTab === 'remark' && (
           <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
         )}
 

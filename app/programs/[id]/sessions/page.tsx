@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, ChevronDown, X } from "lucide-react";
+import { Calendar, ChevronDown, X, Search } from "lucide-react";
 import Pagination from "@/components/Pagination";
+import { useModalStore } from "@/store/modalStore";
 
 interface Session {
   _id: string;
@@ -28,12 +29,14 @@ export default function SessionsPage() {
   const router = useRouter();
   const params = useParams();
   const programId = params.id as string;
+  const { showConfirm, showAlert } = useModalStore();
   
   const [program, setProgram] = useState<Program | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Accordion state
   const [expandedSessionIds, setExpandedSessionIds] = useState<string[]>([]);
@@ -134,11 +137,11 @@ export default function SessionsPage() {
         setEditingSession(null);
         fetchData();
       } else {
-        alert("Failed to update session.");
+        await showAlert({ title: "Update Failed", message: "Failed to update session.", type: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error saving session.");
+      await showAlert({ title: "Error", message: "Error saving session.", type: "danger" });
     } finally {
       setSaving(false);
     }
@@ -165,18 +168,24 @@ export default function SessionsPage() {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to create session.");
+        await showAlert({ title: "Creation Failed", message: data.error || "Failed to create session.", type: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error creating session.");
+      await showAlert({ title: "Error", message: "Error creating session.", type: "danger" });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (sessionId: string) => {
-    if (!confirm("Are you sure you want to permanently delete this session?")) return;
+    const confirmed = await showConfirm({
+      title: "Delete Session",
+      message: "Are you sure you want to permanently delete this session? All attendance records associated with it will be removed.",
+      type: "danger",
+      confirmText: "Delete Session"
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/programs/${programId}/sessions/${sessionId}`, {
         method: "DELETE"
@@ -184,11 +193,11 @@ export default function SessionsPage() {
       if (res.ok) {
         fetchData();
       } else {
-        alert("Failed to delete session.");
+        await showAlert({ title: "Delete Failed", message: "Failed to delete session.", type: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error deleting session.");
+      await showAlert({ title: "Error", message: "Error deleting session.", type: "danger" });
     }
   };
 
@@ -243,15 +252,52 @@ export default function SessionsPage() {
             </p>
           </div>
         ) : (() => {
-          const totalPages = Math.max(1, Math.ceil(sessions.length / 20));
-          const paginatedSessions = sessions.slice((currentPage - 1) * 20, currentPage * 20);
+          const filteredSessions = sessions.filter(session => {
+            if (!searchQuery.trim()) return true;
+            const q = searchQuery.toLowerCase();
+            return (
+              session.sessionTopic?.toLowerCase().includes(q) ||
+              session.speakerName?.toLowerCase().includes(q) ||
+              session.description?.toLowerCase().includes(q)
+            );
+          });
+          const totalPages = Math.max(1, Math.ceil(filteredSessions.length / 20));
+          const paginatedSessions = filteredSessions.slice((currentPage - 1) * 20, currentPage * 20);
           return (
-            <div className="space-y-3">
-              <div className="text-sm text-gray-700 font-medium mb-2">
-                Showing {sessions.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, sessions.length)} of <span className="font-bold">{sessions.length}</span> sessions
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="relative max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+                <input
+                  type="text"
+                  placeholder="Search sessions by topic, speaker, or description..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#A65353] focus:border-transparent text-sm shadow-sm transition-all text-gray-800 placeholder-gray-400"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="text-sm text-gray-700 font-medium">
+                Showing {filteredSessions.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredSessions.length)} of <span className="font-bold">{filteredSessions.length}</span> sessions
               </div>
               
-              {paginatedSessions.map((session) => (
+              {filteredSessions.length === 0 ? (
+                <div className="bg-white rounded-lg shadow-sm border border-yellow-200 p-8 text-center text-gray-500 italic text-sm">
+                  No sessions found matching "{searchQuery}"
+                </div>
+              ) : (
+                paginatedSessions.map((session) => (
               <div
                 key={session._id}
                 className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 overflow-hidden"
@@ -271,24 +317,9 @@ export default function SessionsPage() {
                         {formatDate(session.sessionDate)}
                       </p>
                     </div>
-                    {/* Expand Button for mobile (top right corner) */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(session._id);
-                      }}
-                      className="p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 lg:hidden absolute top-3 right-3"
-                    >
-                      <ChevronDown 
-                        size={18} 
-                        className={`transform transition-transform ${
-                          expandedSessionIds.includes(session._id) ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
                   </div>
 
-                  {/* Right Side Stats Group */}
+                  {/* Middle: Speaker & Counts */}
                   <div className="grid grid-cols-2 sm:flex sm:flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-4 w-full lg:w-auto lg:ml-auto mr-0 lg:mr-2 text-xs sm:text-sm bg-yellow-100/60 lg:bg-transparent p-2.5 lg:p-0 rounded-lg border border-yellow-200/50 lg:border-none">
                     {/* Speaker */}
                     <div className="col-span-2 sm:col-span-1 text-gray-700 sm:w-44 truncate" title={session.speakerName}>
@@ -311,13 +342,13 @@ export default function SessionsPage() {
                     </div>
                   </div>
 
-                  {/* Expand Button for Desktop */}
+                  {/* Expand Button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleExpand(session._id);
                     }}
-                    className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 hidden lg:flex ml-1"
+                    className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 absolute top-3 right-3 lg:static lg:ml-1"
                   >
                     <ChevronDown 
                       size={18} 
@@ -344,10 +375,10 @@ export default function SessionsPage() {
                         onClick={() => router.push(`/programs/${programId}/sessions/${session._id}`)}
                         className="bg-[#A65353] hover:bg-[#8C4343] text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
                       >
-                        Overview
+                        View Details
                       </button>
 
-                      {currentUserRole === 'admin' && (
+                      {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (
                         <>
                           <button
                             onClick={() => openEditModal(session)}
@@ -367,8 +398,11 @@ export default function SessionsPage() {
                   </div>
                 )}
               </div>
-              ))}
-              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+              ))
+              )}
+              {filteredSessions.length > 0 && (
+                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+              )}
             </div>
           );
         })()}

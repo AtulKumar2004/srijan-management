@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, Edit, ChevronDown, Plus, UserPlus, Phone, Mail, MapPin, Briefcase, Archive } from "lucide-react";
+import { Search, Filter, X, Edit, ChevronDown, Plus, UserPlus, Phone, Mail, MapPin, Briefcase, Archive, Download, Trash2 } from "lucide-react";
 import Pagination from "@/components/Pagination";
 
 interface Volunteer {
@@ -365,6 +365,36 @@ export default function VolunteersPage() {
     }
   };
 
+  const handleBulkDeleteVolunteers = async (isPermanent = false) => {
+    if (selectedVolunteers.length === 0) return;
+    const toDelete = selectedVolunteers.filter(id => id !== currentUserId);
+    if (toDelete.length === 0) {
+      alert("You cannot delete your own record.");
+      return;
+    }
+    const promptMsg = isPermanent
+      ? `Are you sure you want to PERMANENTLY delete ${toDelete.length} selected volunteer(s)? This action cannot be undone.`
+      : `Are you sure you want to move ${toDelete.length} selected volunteer(s) to archived list?`;
+    if (!confirm(promptMsg)) return;
+
+    try {
+      await Promise.all(
+        toDelete.map(id => {
+          const url = isPermanent ? `/api/users/${id}?permanent=true` : `/api/users/${id}`;
+          return fetch(url, { method: 'DELETE' });
+        })
+      );
+      setMessage({ type: 'success', text: isPermanent ? `${toDelete.length} volunteer(s) permanently deleted!` : `${toDelete.length} volunteer(s) archived successfully!` });
+      setSelectedVolunteers([]);
+      fetchData();
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error("Error in bulk delete:", error);
+      setMessage({ type: 'error', text: 'Error executing bulk action' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
   const handleUnarchiveVolunteer = async (volunteerId: string, volunteerName: string) => {
     if (!confirm(`Are you sure you want to unarchive ${volunteerName}?`)) return;
     try {
@@ -509,6 +539,73 @@ export default function VolunteersPage() {
   const totalPages = Math.max(1, Math.ceil(filteredVolunteers.length / itemsPerPage));
   const paginatedVolunteers = filteredVolunteers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  const handleDownloadCSV = () => {
+    if (filteredVolunteers.length === 0) {
+      alert("No data available to download.");
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Email",
+      "Phone",
+      "Role",
+      "Profession",
+      "Home Town",
+      "Connected To Temple",
+      "Gender",
+      "Date of Birth",
+      "Address",
+      "Level",
+      "Grade",
+      "Number of Rounds",
+      "Mentor Name",
+      "Active Status",
+      "Archived Status",
+      "Created At"
+    ];
+
+    const rows = filteredVolunteers.map(v => {
+      const mentorName = v.handledBy && v.handledBy !== 'unassigned'
+        ? (handlerNames[v.handledBy] || volunteers.find(vol => vol._id === v.handledBy)?.name || 'N/A')
+        : 'N/A';
+      const dob = v.dateOfBirth ? new Date(v.dateOfBirth).toLocaleDateString() : '';
+      const created = v.createdAt ? new Date(v.createdAt).toLocaleDateString() : '';
+
+      return [
+        `"${(v.name || '').replace(/"/g, '""')}"`,
+        `"${(v.email || '').replace(/"/g, '""')}"`,
+        `"${(v.phone || '').replace(/"/g, '""')}"`,
+        `"${(v.role || '').replace(/"/g, '""')}"`,
+        `"${(v.profession || '').replace(/"/g, '""')}"`,
+        `"${(v.homeTown || '').replace(/"/g, '""')}"`,
+        `"${(v.connectedToTemple || '').replace(/"/g, '""')}"`,
+        `"${(v.gender || '').replace(/"/g, '""')}"`,
+        `"${dob}"`,
+        `"${(v.address || '').replace(/"/g, '""')}"`,
+        `"${v.level !== undefined ? v.level : ''}"`,
+        `"${(v.grade || '').replace(/"/g, '""')}"`,
+        `"${v.numberOfRounds !== undefined ? v.numberOfRounds : ''}"`,
+        `"${mentorName.replace(/"/g, '""')}"`,
+        `"${v.isActive ? 'Active' : 'Inactive'}"`,
+        `"${v.isArchived ? 'Archived' : 'Not Archived'}"`,
+        `"${created}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    const fileName = showArchived ? "archived_volunteers.csv" : "volunteers_list.csv";
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{ 
       backgroundImage: 'url(/backgrou.png)', 
@@ -535,6 +632,14 @@ export default function VolunteersPage() {
               )}
             </div>
             <div className="flex gap-2 sm:gap-3 w-full sm:w-auto flex-wrap">
+              <button
+                onClick={handleDownloadCSV}
+                className="flex-1 sm:flex-none flex items-center justify-center cursor-pointer gap-2 px-3 sm:px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white font-bold rounded-lg transition-colors text-sm sm:text-base shadow"
+              >
+                <Download size={18} className="sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Download Data</span>
+                <span className="sm:hidden">CSV</span>
+              </button>
               {currentUserRole === 'admin' && (
                 <button
                   type="button"
@@ -792,13 +897,31 @@ export default function VolunteersPage() {
                         Bulk Assign Mentor
                       </button>
                     )}
-                    {showArchived && currentUserRole === 'admin' && (
+                    {!showArchived && (
                       <button
-                        onClick={handleBulkUnarchiveVolunteers}
-                        className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm"
+                        onClick={() => handleBulkDeleteVolunteers(false)}
+                        className="px-3 py-1.5 bg-[#A65353] hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
                       >
-                        Unarchive
+                        <Trash2 size={14} />
+                        Delete ({selectedVolunteers.length})
                       </button>
+                    )}
+                    {showArchived && currentUserRole === 'admin' && (
+                      <>
+                        <button
+                          onClick={handleBulkUnarchiveVolunteers}
+                          className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm"
+                        >
+                          Unarchive
+                        </button>
+                        <button
+                          onClick={() => handleBulkDeleteVolunteers(true)}
+                          className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                        >
+                          <Trash2 size={14} />
+                          Permanently Delete ({selectedVolunteers.length})
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => setSelectedVolunteers([])}
@@ -846,46 +969,71 @@ export default function VolunteersPage() {
                     ? expandedVolunteer.filter(id => id !== volunteer._id)
                     : [...expandedVolunteer, volunteer._id]
                 )}
-                className="flex flex-col sm:flex-row items-start sm:items-center px-4 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-3 sm:gap-4 cursor-pointer"
+                className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between px-3 sm:px-6 py-3 sm:py-4 hover:bg-yellow-100 transition-colors gap-2 sm:gap-4 cursor-pointer"
               >
-                {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-                  const canSelect = currentUserRole === 'admin' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId;
-                  return (
-                    <div className="flex items-center sm:mr-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        disabled={!canSelect}
-                        checked={selectedVolunteers.includes(volunteer._id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedVolunteers([...selectedVolunteers, volunteer._id]);
-                          } else {
-                            setSelectedVolunteers(selectedVolunteers.filter(id => id !== volunteer._id));
-                          }
-                        }}
-                        title={!canSelect ? "You can only select volunteers you mentor or yourself" : "Select volunteer"}
-                        className="w-4 h-4 sm:w-5 sm:h-5 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30 disabled:cursor-not-allowed"
-                      />
+                {/* Top Header Row on mobile / Left group on desktop */}
+                <div className="flex items-center justify-between gap-2 w-full xl:w-auto min-w-0">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 xl:flex-initial">
+                    {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
+                      const canSelect = currentUserRole === 'admin' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId;
+                      return (
+                        <div className="flex items-center flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            disabled={!canSelect}
+                            checked={selectedVolunteers.includes(volunteer._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedVolunteers([...selectedVolunteers, volunteer._id]);
+                              } else {
+                                setSelectedVolunteers(selectedVolunteers.filter(id => id !== volunteer._id));
+                              }
+                            }}
+                            title={!canSelect ? "You can only select volunteers you mentor or yourself" : "Select volunteer"}
+                            className="w-4 h-4 sm:w-5 sm:h-5 text-[#A65353] rounded border-gray-300 focus:ring-[#A65353] cursor-pointer accent-[#A65353] disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                        </div>
+                      );
+                    })()}
+                    {/* Name */}
+                    <div className="min-w-0 flex-1 xl:w-48 2xl:w-56">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/programs/${programId}/volunteers/${volunteer._id}`);
+                          }}
+                          className="hover:underline cursor-pointer text-left w-full truncate block"
+                        >
+                          {volunteer.name}
+                        </button>
+                      </h3>
                     </div>
-                  );
-                })()}
-                {/* Name */}
-                <div className="w-full sm:w-48 lg:w-56">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 truncate">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/programs/${programId}/volunteers/${volunteer._id}`);
-                      }}
-                      className="hover:underline cursor-pointer text-left w-full truncate"
-                    >
-                      {volunteer.name}
-                    </button>
-                  </h3>
+                  </div>
+
+                  {/* Expand Button for mobile */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedVolunteer(
+                        expandedVolunteer.includes(volunteer._id)
+                          ? expandedVolunteer.filter(id => id !== volunteer._id)
+                          : [...expandedVolunteer, volunteer._id]
+                      );
+                    }}
+                    className="xl:hidden p-1.5 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
+                  >
+                    <ChevronDown 
+                      size={18} 
+                      className={`transform transition-transform ${
+                        expandedVolunteer.includes(volunteer._id) ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
                 </div>
                 
-                {/* Right Side Stats Group */}
-                <div className="flex items-center gap-3 sm:gap-4 ml-auto mr-1 sm:mr-2 flex-shrink-0 overflow-x-auto">
+                {/* Right Side Stats Group (Wraps cleanly on mobile) */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs sm:text-sm text-gray-700 xl:ml-auto mr-1 sm:mr-2 pl-6 sm:pl-0">
                   {/* Contact Icons */}
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {volunteer.phone && (
@@ -913,36 +1061,37 @@ export default function VolunteersPage() {
                   </div>
 
                   {/* Phone Number */}
-                  <div className="text-gray-700 font-medium text-sm w-28 sm:w-32 flex-shrink-0 text-left">
+                  <div className="font-medium text-gray-800 xl:w-32 flex-shrink-0">
                     {volunteer.phone || 'N/A'}
                   </div>
 
                   {/* Level */}
-                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
-                    Level: {volunteer.level || 'N/A'}
+                  <div className="xl:w-24 flex-shrink-0">
+                    <span className="text-gray-500 xl:hidden">Level: </span>{volunteer.level ? (String(volunteer.level).startsWith('Level') ? volunteer.level : `Level ${volunteer.level}`) : 'N/A'}
                   </div>
 
                   {/* Grade */}
-                  <div className="text-gray-700 text-sm w-24 sm:w-28 flex-shrink-0 text-left">
-                    Grade: {volunteer.grade || 'N/A'}
+                  <div className="xl:w-24 flex-shrink-0">
+                    <span className="text-gray-500 xl:hidden">Grade: </span>{volunteer.grade || 'N/A'}
                   </div>
 
                   {/* Mentoring / Participants Under */}
-                  <div className="text-gray-700 text-sm w-36 sm:w-48 flex-shrink-0 font-medium whitespace-nowrap text-left truncate" title="Number of participants being mentored">
+                  <div className="font-medium text-[#A65353] xl:w-44 flex-shrink-0 truncate">
                     Mentoring: {volunteer.participantsUnder || 0}
                   </div>
                 </div>
 
-
-
-                {/* Expand Button */}
+                {/* Expand Button for desktop */}
                 <button
-                  onClick={() => setExpandedVolunteer(
-                    expandedVolunteer.includes(volunteer._id)
-                      ? expandedVolunteer.filter(id => id !== volunteer._id)
-                      : [...expandedVolunteer, volunteer._id]
-                  )}
-                  className="p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedVolunteer(
+                      expandedVolunteer.includes(volunteer._id)
+                        ? expandedVolunteer.filter(id => id !== volunteer._id)
+                        : [...expandedVolunteer, volunteer._id]
+                    );
+                  }}
+                  className="hidden xl:block p-1.5 sm:p-2 cursor-pointer hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-1"
                 >
                   <ChevronDown 
                     size={18} 

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, User, CheckCircle, XCircle, Users, BookOpen, Layers } from "lucide-react";
+import { Calendar, User, CheckCircle, XCircle, Users, BookOpen, Layers, Search, X } from "lucide-react";
 
 interface SessionDetail {
   _id: string;
@@ -36,6 +36,8 @@ export default function SessionDetailPage() {
   const [presentUsers, setPresentUsers] = useState<AttendanceUser[]>([]);
   const [absentUsers, setAbsentUsers] = useState<AttendanceUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [presentSearch, setPresentSearch] = useState("");
+  const [absentSearch, setAbsentSearch] = useState("");
 
   useEffect(() => {
     fetchSessionDetails();
@@ -192,70 +194,146 @@ export default function SessionDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Present Participants */}
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-green-500">
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <h2 className="text-lg font-bold text-gray-800">
-                Present List ({presentUsers.length})
-              </h2>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <h2 className="text-lg font-bold text-gray-800">
+                  Present List ({presentUsers.length})
+                </h2>
+              </div>
             </div>
+
+            {/* Present Search */}
+            {presentUsers.length > 0 && (
+              <div className="relative mb-4">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search present by name, phone, or role..."
+                  value={presentSearch}
+                  onChange={(e) => setPresentSearch(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white text-sm transition-all text-gray-800 placeholder-gray-400"
+                />
+                {presentSearch && (
+                  <button
+                    onClick={() => setPresentSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
             
             {presentUsers.length === 0 ? (
               <p className="text-gray-500 italic text-center py-8 text-sm">No level {session.level || 1} participants marked present</p>
-            ) : (
-              <div className="space-y-2.5">
-                {presentUsers.map((user) => (
-                  <div
-                    key={user._id}
-                    onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
-                  >
-                    <div className="flex items-center gap-3 truncate">
-                      <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
-                      <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+            ) : (() => {
+              const filteredPresent = presentUsers.filter(u => {
+                if (!presentSearch.trim()) return true;
+                const q = presentSearch.toLowerCase();
+                return (
+                  u.name.toLowerCase().includes(q) ||
+                  u.phone?.toLowerCase().includes(q) ||
+                  u.email?.toLowerCase().includes(q) ||
+                  u.role.toLowerCase().includes(q)
+                );
+              });
+              return filteredPresent.length === 0 ? (
+                <p className="text-gray-500 italic text-center py-6 text-sm">No present participants matching "{presentSearch}"</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredPresent.map((user) => (
+                    <div
+                      key={user._id}
+                      onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
+                    >
+                      <div className="flex items-center gap-3 truncate">
+                        <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
+                        <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+                      </div>
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
+                        <span>📞 {user.phone || user.email || 'N/A'}</span>
+                        <span>Level: {user.level || session.level || 1}</span>
+                        <span>Grade: {user.grade || 'N/A'}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
-                      <span>📞 {user.phone || user.email || 'N/A'}</span>
-                      <span>Level: {user.level || session.level || 1}</span>
-                      <span>Grade: {user.grade || 'N/A'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Absent Participants */}
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-red-500">
-            <div className="flex items-center gap-2 mb-4 pb-2 border-b border-gray-100">
-              <XCircle className="w-5 h-5 text-red-600" />
-              <h2 className="text-lg font-bold text-gray-800">
-                Absent List ({absentUsers.length})
-              </h2>
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-600" />
+                <h2 className="text-lg font-bold text-gray-800">
+                  Absent List ({absentUsers.length})
+                </h2>
+              </div>
             </div>
+
+            {/* Absent Search */}
+            {absentUsers.length > 0 && (
+              <div className="relative mb-4">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search absent by name, phone, or role..."
+                  value={absentSearch}
+                  onChange={(e) => setAbsentSearch(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:bg-white text-sm transition-all text-gray-800 placeholder-gray-400"
+                />
+                {absentSearch && (
+                  <button
+                    onClick={() => setAbsentSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
             
             {absentUsers.length === 0 ? (
               <p className="text-gray-500 italic text-center py-8 text-sm">All level {session.level || 1} participants are present!</p>
-            ) : (
-              <div className="space-y-2.5">
-                {absentUsers.map((user) => (
-                  <div
-                    key={user._id}
-                    onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
-                  >
-                    <div className="flex items-center gap-3 truncate">
-                      <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
-                      <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+            ) : (() => {
+              const filteredAbsent = absentUsers.filter(u => {
+                if (!absentSearch.trim()) return true;
+                const q = absentSearch.toLowerCase();
+                return (
+                  u.name.toLowerCase().includes(q) ||
+                  u.phone?.toLowerCase().includes(q) ||
+                  u.email?.toLowerCase().includes(q) ||
+                  u.role.toLowerCase().includes(q)
+                );
+              });
+              return filteredAbsent.length === 0 ? (
+                <p className="text-gray-500 italic text-center py-6 text-sm">No absent participants matching "{absentSearch}"</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {filteredAbsent.map((user) => (
+                    <div
+                      key={user._id}
+                      onClick={() => router.push(`/programs/${programId}/${user.role === 'volunteer' ? 'volunteers' : 'participants'}/${user._id}`)}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all cursor-pointer shadow-sm gap-2"
+                    >
+                      <div className="flex items-center gap-3 truncate">
+                        <div className="font-bold text-gray-800 text-base truncate">{user.name}</div>
+                        <span className="px-2.5 py-0.5 text-xs font-semibold bg-yellow-200 text-yellow-900 rounded-full capitalize flex-shrink-0">{user.role}</span>
+                      </div>
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
+                        <span>📞 {user.phone || user.email || 'N/A'}</span>
+                        <span>Level: {user.level || session.level || 1}</span>
+                        <span>Grade: {user.grade || 'N/A'}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 flex-wrap flex-shrink-0 ml-auto">
-                      <span>📞 {user.phone || user.email || 'N/A'}</span>
-                      <span>Level: {user.level || session.level || 1}</span>
-                      <span>Grade: {user.grade || 'N/A'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       </main>

@@ -61,7 +61,7 @@ function VolunteerDetailContent() {
     const canEditHandledBy = !isSelf && currentUserRole === 'admin';
 
     const canViewFollowupTab = currentUserRole === 'volunteer' && isSelf;
-    const canViewRemarkTab = (!isSelf && currentUserRole === 'volunteer') || currentUserRole === 'admin';
+    const canViewRemarkTab = currentUserRole === 'admin' || (!isSelf && currentUserRole === 'volunteer');
 
     useEffect(() => {
         fetchUser();
@@ -329,7 +329,7 @@ function VolunteerDetailContent() {
                     <ProfileFollowupTab userId={userId} programId={programId} />
                 )}
 
-                {activeTab === 'remark' && (
+                {canViewRemarkTab && activeTab === 'remark' && (
                     <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
                 )}
 

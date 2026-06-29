@@ -1,6 +1,7 @@
 import { Quicksand } from 'next/font/google'
 import type { Metadata } from "next";
 import "./globals.css";
+import GlobalModalContainer from '@/components/GlobalModalContainer';
 
 const quicksand = Quicksand({
   subsets: ['latin'],
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={quicksand.className}>
       <body>
+        <GlobalModalContainer />
         {children}
       </body>
     </html>

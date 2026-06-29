@@ -92,22 +92,22 @@ export default function VerifyOtpPage() {
       backgroundRepeat: 'repeat',
       backgroundSize: '25%'
     }}>
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+      <div className="relative z-10 min-h-screen flex items-center justify-center p-3 sm:p-4">
         <div className="w-full max-w-md">
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="text-6xl mb-4">🔐</div>
-            <h1 className="text-4xl font-bold text-cyan-900 mb-2">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🔐</div>
+            <h1 className="text-2xl sm:text-4xl font-bold text-cyan-900 mb-2">
               Verify Your {channel === 'phone' ? 'Phone' : 'Email'}
             </h1>
-            <p className="text-white">
+            <p className="text-white text-sm sm:text-base px-2 break-all">
               Enter the 6-digit code sent to<br />
               <span className="font-semibold">{target}</span>
             </p>
           </div>
 
           {/* Verification Card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-cyan-100">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-5 sm:p-8 border border-cyan-100">
             {otpError && (
               <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-sm">
                 {otpError}
@@ -115,7 +115,7 @@ export default function VerifyOtpPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="flex justify-between gap-2">
+              <div className="flex justify-center gap-1.5 sm:gap-2">
                 {code.map((digit, index) => (
                   <input
                     key={index}
@@ -128,7 +128,7 @@ export default function VerifyOtpPage() {
                     value={digit}
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-14 text-center text-2xl font-bold bg-white border-2 border-cyan-200 text-cyan-900 rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
+                    className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl sm:text-2xl font-bold bg-white border-2 border-cyan-200 text-cyan-900 rounded-md sm:rounded-lg focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
                   />
                 ))}
               </div>
