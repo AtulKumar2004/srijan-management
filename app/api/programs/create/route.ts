@@ -40,27 +40,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if program already exists
-    const existingProgram = await Program.findOne({ name });
-    if (existingProgram) {
-      return NextResponse.json(
-        { error: "Program with this name already exists" },
-        { status: 400 }
-      );
-    }
-
-    if (temple && typeof temple === "string" && temple.trim() !== "") {
-      const existingTemple = await Program.findOne({
-        temple: { $regex: new RegExp(`^${temple.trim()}$`, "i") }
-      });
-      if (existingTemple) {
-        return NextResponse.json(
-          { error: `A program assigned to temple "${temple}" already exists. Every program's temple name must be unique.` },
-          { status: 400 }
-        );
-      }
-    }
-
     const program = await Program.create({
       name,
       description,

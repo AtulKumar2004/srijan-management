@@ -48,6 +48,7 @@ const UserSchema = new Schema<IUser>(
       type: String,
       enum: ["admin", "volunteer", "participant", "guest"],
       default: "guest",
+      index: true,
     },
 
     // Devotee details
@@ -66,14 +67,14 @@ const UserSchema = new Schema<IUser>(
 
     level: Number,
     grade: String,
-    registeredBy: String, 
-    handledBy: String,
+    registeredBy: { type: String, index: true }, 
+    handledBy: { type: String, index: true },
     maritalStatus: String,
     participantsUnder: Number,
-    programs: [String],
+    programs: { type: [String], index: true },
 
     isActive: { type: Boolean, default: false }, // Only active after OTP verification
-    isArchived: { type: Boolean, default: false },
+    isArchived: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

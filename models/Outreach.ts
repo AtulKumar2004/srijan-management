@@ -24,17 +24,17 @@ const OutreachContactSchema = new Schema<IOutreachContact>({
   profession: { type: String, required: true },
   motherTongue: String,
   currentLocation: String,
-  registeredBy: { type: String, required: true },
+  registeredBy: { type: String, required: true, index: true },
   numberOfRounds: { type: Number, default: 0 },
-  branch: { type: String, required: true },
+  branch: { type: String, required: true, index: true },
   paidStatus: {
     type: String,
     default: "Unpaid",
     enum: ["Paid", "Unpaid", "Partially Paid", "Sponsored"]
   },
   comment: String,
-  underWhichAdmin: String,
-  assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  underWhichAdmin: { type: String, index: true },
+  assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

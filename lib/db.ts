@@ -6,17 +6,34 @@ if (!MONGODB_URI) {
   throw new Error("❌ Please define MONGODB_URI in .env file");
 }
 
+let cached = (global as any).mongoose;
+
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null };
+}
+
 export async function connectDB() {
-  if (mongoose.connection.readyState >= 1) {
-    console.log("✅ Using existing MongoDB connection");
-    return;
+  if (cached.conn) {
+    return cached.conn;
   }
 
-  try {
-    const db = await mongoose.connect(MONGODB_URI);
-    console.log("✅ MongoDB Connected:", db.connection.host);
-  } catch (error) {
-    console.error("❌ MongoDB Connection Error:", error);
-    throw error;
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+    };
+
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+      console.log("✅ MongoDB Connected:", mongoose.connection.host);
+      return mongoose;
+    });
   }
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    console.error("❌ MongoDB Connection Error:", e);
+    throw e;
+  }
+
+  return cached.conn;
 }

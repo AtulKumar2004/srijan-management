@@ -150,29 +150,6 @@ export async function PUT(
 
     const { name, description, minAge, maxAge, photo, temple } = await req.json();
 
-    if (name && name !== program.name) {
-      const existingName = await Program.findOne({ name, _id: { $ne: id } });
-      if (existingName) {
-        return NextResponse.json(
-          { error: "Program with this name already exists" },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (temple && typeof temple === "string" && temple.trim() !== "") {
-      const existingTemple = await Program.findOne({
-        temple: { $regex: new RegExp(`^${temple.trim()}$`, "i") },
-        _id: { $ne: id }
-      });
-      if (existingTemple) {
-        return NextResponse.json(
-          { error: `A program assigned to temple "${temple}" already exists. Every program's temple name must be unique.` },
-          { status: 400 }
-        );
-      }
-    }
-
     // Update the program
     program.name = name;
     program.description = description;
