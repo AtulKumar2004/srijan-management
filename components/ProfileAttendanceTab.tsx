@@ -24,10 +24,16 @@ export default function ProfileAttendanceTab({ userId, programId }: { userId: st
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!userId || !programId) return;
     fetchAttendanceVisual();
   }, [userId, programId]);
 
   const fetchAttendanceVisual = async () => {
+    if (!userId || !programId) {
+      setError("Missing user or program ID.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -36,7 +42,8 @@ export default function ProfileAttendanceTab({ userId, programId }: { userId: st
         const result = await res.json();
         setData(result);
       } else {
-        setError("Failed to load attendance pictorial view.");
+        const errData = await res.json().catch(() => ({}));
+        setError(errData.error || "Failed to load attendance pictorial view.");
       }
     } catch (err) {
       console.error("Error loading attendance visual:", err);

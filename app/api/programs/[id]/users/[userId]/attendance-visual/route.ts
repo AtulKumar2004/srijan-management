@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import Session from "@/models/Session";
 import Attendance from "@/models/Attendance";
 import User from "@/models/User";
+import mongoose from "mongoose";
 
 export async function GET(
   req: NextRequest,
@@ -12,16 +13,26 @@ export async function GET(
     await connectDB();
     const { id: programId, userId } = await params;
 
-    const student = await User.findById(userId).select("level name");
-    if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    // Validate ObjectIds before querying
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(programId)) {
+      return NextResponse.json({ error: "Invalid ID format" }, { status: 400 });
     }
-    const studentLevel = Number(student.level || 1);
+
+    // Try to get the student's level — default to 1 if user not found
+    let studentLevel = 1;
+    try {
+      const student = await User.findById(userId).select("level");
+      if (student) {
+        studentLevel = Number(student.level || 1);
+      }
+    } catch {
+      // User lookup failed; continue with default level 1
+    }
 
     // Fetch all scheduled sessions for this program
     const allSessions = await Session.find({ programId }).sort({ sessionDate: 1 }).lean();
-    
-    // Filter to only those sessions where session level matches the candidate's level
+
+    // Filter to only those sessions where session level matches the student's level
     const candidateSessions = allSessions.filter((s: any) => Number(s.level || 1) === studentLevel);
 
     // Fetch all attendance records for this user in this program where status is present
@@ -32,11 +43,16 @@ export async function GET(
     }).lean();
 
     // Map attended dates YYYY-MM-DD -> boolean
+    // Also include the day before/after to handle timezone-offset edge cases
     const attendedDatesSet = new Set<string>();
     attendanceRecords.forEach((a: any) => {
       try {
-        const dStr = new Date(a.date).toISOString().split('T')[0];
-        attendedDatesSet.add(dStr);
+        const d = new Date(a.date);
+        // Add the UTC date string
+        attendedDatesSet.add(d.toISOString().split('T')[0]);
+        // Also add local date string (handles records stored with timezone offset)
+        const localStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        attendedDatesSet.add(localStr);
       } catch {}
     });
 
@@ -46,8 +62,11 @@ export async function GET(
 
     candidateSessions.forEach((sess: any) => {
       try {
-        const dateStr = new Date(sess.sessionDate).toISOString().split('T')[0];
-        const isPresent = attendedDatesSet.has(dateStr);
+        const d = new Date(sess.sessionDate);
+        const dateStr = d.toISOString().split('T')[0];
+        const localStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const isPresent = attendedDatesSet.has(dateStr) || attendedDatesSet.has(localStr);
+
         if (isPresent) {
           totalAttended++;
           attendedLevelCounts[studentLevel] = (attendedLevelCounts[studentLevel] || 0) + 1;
