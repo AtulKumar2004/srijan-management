@@ -47,28 +47,28 @@ export async function GET(req: NextRequest) {
     if (!sessions || sessions.length === 0) {
       return NextResponse.json({
         followUps: [],
-        sessionLevel: null,
+        sessionLevels: [],
         noSession: true,
         message: "No session found on this date"
       }, { status: 200 });
     }
 
-    // Use the level of the session (defaulting to 1 if undefined)
-    const sessionLevel = Number(sessions[0].level || 1);
+    // Use the levels of all sessions on this date
+    const sessionLevels = Array.from(new Set(sessions.map((s: any) => Number(s.level || 1)))).sort((a, b) => a - b);
 
-    // 2. Find all active participants and volunteers enrolled in this program whose level matches sessionLevel
+    // 2. Find all active participants and volunteers enrolled in this program whose level matches any of the sessionLevels
     const programUsers = await User.find({
       programs: programId,
       role: { $in: ["participant", "volunteer"] },
       isArchived: { $ne: true }
     }).select("_id name email phone role level profession grade").sort({ name: 1 }).lean();
 
-    const matchingUsers = programUsers.filter(u => Number(u.level || 1) === sessionLevel);
+    const matchingUsers = programUsers.filter(u => sessionLevels.includes(Number(u.level || 1)));
 
     if (matchingUsers.length === 0) {
       return NextResponse.json({
         followUps: [],
-        sessionLevel,
+        sessionLevels,
         noSession: false
       }, { status: 200 });
     }
@@ -101,8 +101,9 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({
+      success: true,
       followUps: result,
-      sessionLevel,
+      sessionLevels,
       noSession: false
     }, { status: 200 });
 

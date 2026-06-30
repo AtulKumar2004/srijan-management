@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, Edit, ChevronDown, Plus, UserPlus, Phone, Mail, MapPin, Briefcase, Archive, Download, Trash2 } from "lucide-react";
+import { Search, Filter, X, Edit, ChevronDown, Plus, UserPlus, Phone, Mail, MapPin, Briefcase, Archive, Download, Trash2, AlertCircle } from "lucide-react";
 import Pagination from "@/components/Pagination";
 import { useModalStore } from "@/store/modalStore";
 
@@ -83,6 +83,7 @@ export default function VolunteersPage() {
   });
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -510,12 +511,12 @@ export default function VolunteersPage() {
         fetchData(); // Refresh the list
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to add volunteer' });
+        setModalError(data.error || 'Failed to add volunteer');
         setToast({ type: 'error', text: data.error || 'Failed to add volunteer' });
       }
     } catch (error) {
       console.error("Error adding volunteer:", error);
-      setMessage({ type: 'error', text: 'Error adding volunteer' });
+      setModalError('Error adding volunteer. Please try again.');
       setToast({ type: 'error', text: 'Error adding volunteer' });
     } finally {
       setSaving(false);
@@ -1230,6 +1231,7 @@ export default function VolunteersPage() {
                   onClick={() => {
                     setShowAddModal(false);
                     setMessage(null);
+                    setModalError(null);
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -1239,6 +1241,13 @@ export default function VolunteersPage() {
             </div>
 
             <form onSubmit={handleAddVolunteer} className="p-4 sm:p-6">
+              {/* Modal-level error banner */}
+              {modalError && (
+                <div className="mb-4 flex items-start gap-2 p-3 bg-red-50 border border-red-300 text-red-700 rounded-lg text-sm">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
                 {/* Name */}
                 <div>
@@ -1279,8 +1288,14 @@ export default function VolunteersPage() {
                     type="tel"
                     name="phone"
                     value={newVolunteer.phone}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      handleInputChange({ target: { name: 'phone', value: digits } } as React.ChangeEvent<HTMLInputElement>);
+                    }}
                     required
+                    maxLength={10}
+                    pattern="[0-9]{10}"
+                    placeholder="10-digit mobile number"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Phone, Save, CheckCircle, Clock, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Phone, Save, CheckCircle, Clock, Filter, ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 interface MenteeFollowupItem {
   user: {
@@ -39,7 +39,9 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dateLevelMap, setDateLevelMap] = useState<Record<string, number[]>>({});
   const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [showCalendarPopup, setShowCalendarPopup] = useState<boolean>(false);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
@@ -51,9 +53,9 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
     const month = calendarMonth.getMonth();
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
+
     const days: { dayNumber: number; dateStr: string; isCurrentMonth: boolean }[] = [];
-    
+
     const prevMonthDays = new Date(year, month, 0).getDate();
     for (let i = firstDayOfMonth - 1; i >= 0; i--) {
       const d = prevMonthDays - i;
@@ -63,14 +65,14 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
       const dStr = String(prevDate.getDate()).padStart(2, '0');
       days.push({ dayNumber: d, dateStr: `${yStr}-${mStr}-${dStr}`, isCurrentMonth: false });
     }
-    
+
     for (let i = 1; i <= daysInMonth; i++) {
       const yStr = year;
       const mStr = String(month + 1).padStart(2, '0');
       const dStr = String(i).padStart(2, '0');
       days.push({ dayNumber: i, dateStr: `${yStr}-${mStr}-${dStr}`, isCurrentMonth: true });
     }
-    
+
     const remainingCells = (7 - (days.length % 7)) % 7;
     for (let i = 1; i <= remainingCells; i++) {
       const nextDate = new Date(year, month + 1, i);
@@ -79,7 +81,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
       const dStr = String(nextDate.getDate()).padStart(2, '0');
       days.push({ dayNumber: i, dateStr: `${yStr}-${mStr}-${dStr}`, isCurrentMonth: false });
     }
-    
+
     return days;
   };
 
@@ -94,13 +96,27 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
         const res = await fetch(`/api/programs/${programId}/sessions`);
         if (res.ok) {
           const data = await res.json();
+          const levelMap: Record<string, number[]> = {};
           const dates: string[] = Array.from(
             new Set(
-              (data.sessions || []).map((s: any) =>
-                new Date(s.sessionDate).toISOString().split("T")[0]
-              )
+              (data.sessions || []).map((s: any) => {
+                const d = new Date(s.sessionDate);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${y}-${m}-${day}`;
+                
+                if (!levelMap[dateStr]) levelMap[dateStr] = [];
+                const sLevel = s.level ?? 1;
+                if (!levelMap[dateStr].includes(sLevel)) {
+                  levelMap[dateStr].push(sLevel);
+                }
+                
+                return dateStr;
+              })
             )
           );
+          setDateLevelMap(levelMap);
           setAvailableDates(dates);
           if (dates.length > 0) {
             setSelectedDate(dates[0]);
@@ -211,18 +227,37 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
   const notAnsweredCount = mentees.filter((m) => (edits[m.user._id]?.status || m.followUp?.status || "Not Called") === "Not Answered").length;
   const notCalledCount = mentees.filter((m) => (edits[m.user._id]?.status || m.followUp?.status || "Not Called") === "Not Called").length;
 
+  // Levels of the currently selected session(s) (auto-derived)
+  const sessionLevels = selectedDate ? dateLevelMap[selectedDate] : undefined;
+
   const filteredMentees = mentees.filter((item) => {
-    if (filterStatus === "All") return true;
-    const currentStatus = edits[item.user._id]?.status || item.followUp?.status || "Not Called";
-    return currentStatus === filterStatus;
+    // Auto-filter: only show mentees matching any of the session's levels
+    if (sessionLevels && sessionLevels.length > 0 && item.user.level !== undefined) {
+      if (!sessionLevels.includes(Number(item.user.level))) return false;
+    }
+    // Status filter
+    if (filterStatus !== "All") {
+      const currentStatus = edits[item.user._id]?.status || item.followUp?.status || "Not Called";
+      if (currentStatus !== filterStatus) return false;
+    }
+    // Search filter
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const { name, phone, email } = item.user;
+      if (
+        !name?.toLowerCase().includes(q) &&
+        !phone?.toLowerCase().includes(q) &&
+        !email?.toLowerCase().includes(q)
+      ) return false;
+    }
+    return true;
   });
 
   return (
     <div className="space-y-4 sm:space-y-6">
       {message && (
-        <div className={`p-3 sm:p-4 rounded-xl text-sm sm:text-base font-medium ${
-          message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-        }`}>
+        <div className={`p-3 sm:p-4 rounded-xl text-sm sm:text-base font-medium ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+          }`}>
           {message.text}
         </div>
       )}
@@ -244,11 +279,10 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
                 <button
                   type="button"
                   onClick={() => setShowCalendarPopup(!showCalendarPopup)}
-                  className={`px-3 py-1.5 border rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm font-semibold cursor-pointer shadow-sm flex items-center gap-2 ${
-                    availableDates.includes(selectedDate)
+                  className={`px-3 py-1.5 border rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm font-semibold cursor-pointer shadow-sm flex items-center gap-2 ${availableDates.includes(selectedDate)
                       ? "bg-emerald-50 border-emerald-400 text-emerald-900"
                       : "bg-amber-50 border-amber-400 text-amber-900"
-                  }`}
+                    }`}
                 >
                   <span>{selectedDate || "Select Date"}</span>
                   <span className="text-xs opacity-75">▼</span>
@@ -305,15 +339,13 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
                               setSelectedDate(dayObj.dateStr);
                               setShowCalendarPopup(false);
                             }}
-                            className={`h-8 rounded-lg text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${
-                              !dayObj.isCurrentMonth ? "opacity-30" : ""
-                            } ${
-                              isSelected
+                            className={`h-8 rounded-lg text-xs font-semibold flex flex-col items-center justify-center relative transition-all cursor-pointer ${!dayObj.isCurrentMonth ? "opacity-30" : ""
+                              } ${isSelected
                                 ? "bg-[#A65353] text-white font-bold shadow-md ring-2 ring-[#A65353] ring-offset-1 scale-105 z-10"
                                 : isSession
-                                ? "bg-emerald-100 text-emerald-900 font-extrabold border-2 border-emerald-400 hover:bg-emerald-200"
-                                : "text-gray-700 hover:bg-gray-100"
-                            }`}
+                                  ? "bg-emerald-100 text-emerald-900 font-extrabold border-2 border-emerald-400 hover:bg-emerald-200"
+                                  : "text-gray-700 hover:bg-gray-100"
+                              }`}
                           >
                             <span>{dayObj.dayNumber}</span>
                             {isSession && !isSelected && (
@@ -323,7 +355,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
                         );
                       })}
                     </div>
-                    
+
                     <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-[11px]">
                       <div className="flex items-center gap-1.5 text-gray-600">
                         <span className="w-2.5 h-2.5 rounded bg-emerald-100 border border-emerald-400 inline-block"></span>
@@ -375,25 +407,43 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Search & Filter Bar */}
       {!datesLoading && availableDates.includes(selectedDate) && !loading && mentees.length > 0 && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-[#A65353]" />
-            <span className="text-sm font-bold text-gray-700">Filter by Status</span>
+        <div className="flex flex-col gap-3 bg-white p-3 sm:p-4 rounded-xl border border-gray-100 shadow-sm">
+          {/* Session level badge */}
+          {sessionLevels && sessionLevels.length > 0 && (
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 w-fit">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+              Showing Level {sessionLevels.join(", ")} mentees for this session
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, phone, email…"
+                className="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm bg-white shadow-sm"
+              />
+            </div>
+            {/* Status filter */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Filter className="w-4 h-4 text-[#A65353]" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full sm:w-48 px-3 py-1.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm font-semibold bg-white cursor-pointer shadow-sm"
+              >
+                <option value="All">All Status</option>
+                {statusOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full sm:w-60 px-3 py-1.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] text-sm font-semibold bg-white cursor-pointer shadow-sm"
-          >
-            <option value="All">All</option>
-            {statusOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
         </div>
       )}
 
@@ -426,7 +476,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
         </div>
       ) : filteredMentees.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
-          <p className="text-gray-500 font-medium text-base">No mentees match the selected status filter ({filterStatus}).</p>
+          <p className="text-gray-500 font-medium text-base">No mentees match the selected filters.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">

@@ -109,9 +109,13 @@ export default function OutreachFollowUpsPage() {
           const data = await res.json();
           const dates: string[] = Array.from(
             new Set(
-              (data.sessions || []).map((s: any) =>
-                new Date(s.sessionDate).toISOString().split("T")[0]
-              )
+              (data.sessions || []).map((s: any) => {
+                const d = new Date(s.sessionDate);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+              })
             )
           );
           setAvailableDates(dates);

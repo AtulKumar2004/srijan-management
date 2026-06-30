@@ -26,12 +26,44 @@ export async function POST(req: Request) {
       );
     }
 
-    if(!user.isActive) {
+    if (!user.isActive) {
+      // Verify password first before resending OTP
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
         return NextResponse.json(
-        { error: "User has not verified his account" },
-        { status: 401 }
+          { error: "Invalid email or password" },
+          { status: 401 }
+        );
+      }
+
+      // Resend a fresh OTP so they can complete verification
+      const Otp = (await import("@/models/Otp")).default;
+      const { sendEmailOtp } = await import("@/lib/sendEmailOtp");
+
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      await Otp.create({
+        target: user.email,
+        code: otpCode,
+        channel: "email",
+        purpose: "signup",
+        expiresAt,
+      });
+
+      await sendEmailOtp(user.email, otpCode);
+
+      return NextResponse.json(
+        {
+          error: "Account not verified. A new OTP has been sent to your email.",
+          needsVerification: true,
+          userId: user._id,
+          target: user.email,
+          channel: "email",
+        },
+        { status: 403 }
       );
-    } 
+    }
 
     // VERIFY PASSWORD
     const isMatch = await bcrypt.compare(password, user.password);

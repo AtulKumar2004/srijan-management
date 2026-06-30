@@ -324,17 +324,7 @@ function ProfileContent() {
                                         <Phone size={16} className="inline mr-1" />
                                         Phone
                                     </label>
-                                    {isEditing ? (
-                                        <input
-                                            type="tel"
-                                            name="phone"
-                                            value={formData.phone || ''}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                    ) : (
-                                        <p className="text-gray-900">{user.phone || 'Not provided'}</p>
-                                    )}
+                                    <p className="text-gray-900">{user.phone || 'Not provided'}</p>
                                 </div>
 
                                 <div>

@@ -5,7 +5,6 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Otp from "@/models/Otp";
 import crypto from "crypto";
-import { sendSmsOtp } from "@/lib/sendSMSOtp";
 import { sendEmailOtp } from "@/lib/sendEmailOtp";
 
 const OTP_TTL_MINUTES = 10; // OTP valid for 10 minutes
@@ -17,13 +16,8 @@ function generateOtp() {
     return otp;
 }
 
-async function sendOtpToTarget(target: string, channel: "phone" | "email", code: string) {
-    console.log("AUTH KEY:", process.env.MSG91_AUTH_KEY)
-    if (channel === "phone") {
-        await sendSmsOtp(target, code);
-    } else {
-        await sendEmailOtp(target, code);
-    }
+async function sendOtpToTarget(target: string, code: string) {
+    return await sendEmailOtp(target, code);
 }
 
 /**
@@ -67,6 +61,11 @@ export async function POST(req: Request) {
         // normalize keys
         const normEmail = String(email).trim().toLowerCase();
         const normPhone = phone ? String(phone).trim() : undefined;
+
+        const cleanPhone = normPhone ? normPhone.replace(/\D/g, "") : "";
+        if (!cleanPhone || cleanPhone.length !== 10) {
+            return NextResponse.json({ error: "A valid 10-digit phone number is required" }, { status: 400 });
+        }
 
         const archivedUser = await User.findOne({
             isArchived: true,
@@ -118,13 +117,14 @@ export async function POST(req: Request) {
                 expiresAt,
             });
 
-            await sendOtpToTarget(normEmail, "email", otpCode);
+            await sendOtpToTarget(normEmail, otpCode);
 
             return NextResponse.json(
                 {
                     message: "Archived account found. A verification code has been sent to your email to restore and activate account.",
                     next: "verify-otp",
-                    target: "email",
+                    target: normEmail,
+                    channel: "email",
                     userId: archivedUser._id,
                 },
                 { status: 200 }
@@ -156,13 +156,14 @@ export async function POST(req: Request) {
                 expiresAt,
             });
 
-            await sendOtpToTarget(normEmail, "email", otpCode);
+            await sendOtpToTarget(normEmail, otpCode);
 
             return NextResponse.json(
                 {
                     message: "A verification code has been sent to your email. Verify to activate account.",
                     next: "verify-otp",
-                    target: "email",
+                    target: normEmail,
+                    channel: "email",
                     userId: existingByEmail._id,
                 },
                 { status: 200 }
@@ -192,13 +193,14 @@ export async function POST(req: Request) {
                     expiresAt,
                 });
 
-                await sendOtpToTarget(normEmail, "email", otpCode);
+                await sendOtpToTarget(normEmail, otpCode);
 
                 return NextResponse.json(
                     {
                         message: "A verification code has been sent to your email. Verify to activate account.",
                         next: "verify-otp",
-                        target: "email",
+                        target: normEmail,
+                        channel: "email",
                         userId: existingByPhone._id,
                     },
                     { status: 200 }
@@ -231,28 +233,35 @@ export async function POST(req: Request) {
             isActive: false, // IMPORTANT: not active until OTP verified
         });
 
-        // Create OTP strictly via email
-        const channel: "email" = "email";
-        const target = normEmail;
+        // Create OTP via email
         const otpCode = generateOtp();
         const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
         await Otp.create({
-            target,
+            target: normEmail,
             code: otpCode,
-            channel,
+            channel: "email",
             purpose: "signup",
             expiresAt,
         });
 
-        await sendOtpToTarget(target, channel, otpCode);
+        const emailResult = await sendOtpToTarget(normEmail, otpCode);
+        if (!emailResult?.ok) {
+            // Clean up the created user so they can retry
+            await User.findByIdAndDelete(newUser._id);
+            return NextResponse.json(
+                { error: "Failed to send verification email. Please check your email address and try again." },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json(
             {
                 message: "Signup created. Verify the code sent to your email to activate the account.",
                 next: "verify-otp",
-                target: channel,
                 userId: newUser._id,
+                target: normEmail,
+                channel: "email",
             },
             { status: 201 }
         );

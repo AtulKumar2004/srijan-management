@@ -4,12 +4,14 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
-import { Loader, Mail, Lock, HandHeart, ClipboardList, Target, Eye, EyeOff } from 'lucide-react';
+import { useOtpStore } from '@/store/otpStore';
+import { Loader, Mail, Lock, HandHeart, ClipboardList, Target, Eye, EyeOff, Flower2, Sparkles } from 'lucide-react';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, loading, error: authError, clearError } = useAuthStore();
+  const { setOtpData } = useOtpStore();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -31,9 +33,16 @@ function LoginForm() {
     setSuccessMessage('');
 
     try {
-      const { redirect } = await login(formData);
-      // Use the redirect URL from the API response
-      router.push(redirect);
+      const result = await login(formData);
+
+      // Unverified account — OTP was resent, redirect to verify page
+      if (result.needsVerification && result.userId && result.target) {
+        setOtpData(result.userId, result.target, 'email');
+        router.push('/verify-otp');
+        return;
+      }
+
+      router.push(result.redirect);
     } catch (err: any) {
       // Error is already set in the store and displayed to the user
     }
@@ -161,7 +170,7 @@ function LoginForm() {
                   href="/signup"
                   className="font-semibold text-cyan-600 hover:text-cyan-700"
                 >
-                  Create Account 🌸
+                  Create Account
                 </Link>
               </p>
             </div>
@@ -193,7 +202,10 @@ function LoginForm() {
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-sm text-black font-bold">🕉️ "The soul is neither born, and nor does it die" - Bhagavad Gita</p>
+            <p className="text-sm text-black font-bold flex items-center justify-center gap-1.5">
+              <Sparkles size={14} className="text-amber-600 flex-shrink-0" />
+              "The soul is neither born, and nor does it die" - Bhagavad Gita
+            </p>
           </div>
         </div>
       </div>

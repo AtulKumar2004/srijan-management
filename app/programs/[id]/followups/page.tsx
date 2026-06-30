@@ -38,7 +38,8 @@ export default function FollowUpsPage() {
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
 
   const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
-  const [sessionLevel, setSessionLevel] = useState<number | null>(null);
+  const [sessionLevels, setSessionLevels] = useState<number[]>([]);
+  const [activeLevelTab, setActiveLevelTab] = useState<number | null>(null);
   const [noSession, setNoSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
@@ -78,9 +79,13 @@ export default function FollowUpsPage() {
           const data = await res.json();
           const dates: string[] = Array.from(
             new Set(
-              (data.sessions || []).map((s: any) =>
-                new Date(s.sessionDate).toISOString().split("T")[0]
-              )
+              (data.sessions || []).map((s: any) => {
+                const d = new Date(s.sessionDate);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+              })
             )
           );
           setAvailableDates(dates);
@@ -116,12 +121,19 @@ export default function FollowUpsPage() {
         if (data.noSession) {
           setNoSession(true);
           setFollowUps([]);
-          setSessionLevel(null);
+          setSessionLevels([]);
+          setActiveLevelTab(null);
         } else {
           setNoSession(false);
           const list: FollowUpItem[] = data.followUps || [];
           setFollowUps(list);
-          setSessionLevel(data.sessionLevel || null);
+          const levels = data.sessionLevels || [];
+          setSessionLevels(levels);
+          if (levels.length > 0 && !levels.includes(activeLevelTab!)) {
+            setActiveLevelTab(levels[0]);
+          } else if (levels.length === 0) {
+            setActiveLevelTab(null);
+          }
 
           const initialEdits: any = {};
           list.forEach(item => {
@@ -199,19 +211,21 @@ export default function FollowUpsPage() {
     return days;
   };
 
-  const filteredFollowUps = followUps.filter(f => {
+  const followUpsForActiveLevel = followUps.filter(f => Number(f.user.level || 1) === activeLevelTab);
+
+  const filteredFollowUps = followUpsForActiveLevel.filter(f => {
     if (!filterStatus) return true;
     const currentStatus = edits[f.user._id]?.status || f.status;
     return currentStatus === filterStatus;
   });
 
-  const currentStatuses = followUps.map(f => edits[f.user._id]?.status || f.status || "Not Called");
+  const currentStatuses = followUpsForActiveLevel.map(f => edits[f.user._id]?.status || f.status || "Not Called");
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedDate, filterStatus]);
+  }, [selectedDate, filterStatus, activeLevelTab]);
 
   const stats = {
-    total: followUps.length,
+    total: followUpsForActiveLevel.length,
     coming: currentStatuses.filter(s => s === "Coming").length,
     notComing: currentStatuses.filter(s => s === "Not Coming").length,
     mayCome: currentStatuses.filter(s => s === "May Come").length,
@@ -433,12 +447,27 @@ export default function FollowUpsPage() {
           </div>
         </div>
 
+        {/* Level Tabs */}
+        {sessionLevels.length > 0 && (
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+            {sessionLevels.map(lvl => (
+              <button
+                key={lvl}
+                onClick={() => setActiveLevelTab(lvl)}
+                className={`px-5 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all duration-200 ${activeLevelTab === lvl ? 'bg-[#A65353] text-white shadow-md transform scale-105' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'}`}
+              >
+                Level {lvl}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* List Section */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
           <div className="p-4 sm:p-6 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-800">
-                People List {sessionLevel !== null && <span className="text-sm font-normal text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full ml-2">Session Level: {sessionLevel}</span>}
+                People List {activeLevelTab !== null && <span className="text-sm font-normal text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full ml-2">Level: {activeLevelTab}</span>}
               </h2>
               <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
                 Showing {filteredFollowUps.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredFollowUps.length)} of {filteredFollowUps.length} matching people
@@ -467,7 +496,7 @@ export default function FollowUpsPage() {
             </div>
           ) : filteredFollowUps.length === 0 ? (
             <div className="p-12 text-center text-gray-500 italic">
-              No people found matching Level {sessionLevel} on this date.
+              No people found matching Level {activeLevelTab} on this date.
             </div>
           ) : (
             <div className="divide-y divide-gray-200">

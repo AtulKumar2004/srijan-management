@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, ChevronDown, UserPlus, Phone, Archive, Download, Trash2 } from "lucide-react";
+import { Search, Filter, X, ChevronDown, UserPlus, Phone, Archive, Download, Trash2, AlertCircle } from "lucide-react";
 import Pagination from "@/components/Pagination";
 import { useModalStore } from "@/store/modalStore";
 
@@ -59,6 +59,7 @@ export default function ParticipantsPage() {
   const [saving, setSaving] = useState(false);
   const [expandedParticipant, setExpandedParticipant] = useState<string[]>([]);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [volunteerNames, setVolunteerNames] = useState<{ [key: string]: string }>({});
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [currentUserRole, setCurrentUserRole] = useState<string>('');
@@ -372,7 +373,9 @@ export default function ParticipantsPage() {
         },
         body: JSON.stringify({
           ...newParticipant,
-          programs: [programId]
+          programs: [programId],
+          level: 1,
+          grade: "D"
         }),
       });
 
@@ -389,13 +392,11 @@ export default function ParticipantsPage() {
         fetchData();
         setTimeout(() => setMessage(null), 5000);
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to create participant' });
-        setTimeout(() => setMessage(null), 3000);
+        setModalError(data.error || 'Failed to create participant');
       }
     } catch (error) {
       console.error("Error creating participant:", error);
-      setMessage({ type: 'error', text: 'Error creating participant' });
-      setTimeout(() => setMessage(null), 3000);
+      setModalError('Error creating participant. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -1442,7 +1443,7 @@ export default function ParticipantsPage() {
               <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Add New Participant</h2>
                 <button
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => { setShowAddModal(false); setModalError(null); }}
                   className="text-gray-500 cursor-pointer hover:text-gray-700"
                 >
                   <X size={24} />
@@ -1450,6 +1451,13 @@ export default function ParticipantsPage() {
               </div>
 
               <form onSubmit={handleAddParticipant} className="space-y-3 sm:space-y-4">
+                {/* Modal-level error banner */}
+                {modalError && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-300 text-red-700 rounded-lg text-sm">
+                    <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>{modalError}</span>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-3 sm:gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1484,8 +1492,11 @@ export default function ParticipantsPage() {
                     <input
                       type="tel"
                       value={newParticipant.phone}
-                      onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value })}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                       required
+                      maxLength={10}
+                      pattern="[0-9]{10}"
+                      placeholder="10-digit mobile number"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

@@ -401,19 +401,8 @@ function ParticipantDetailContent() {
                     <Mail size={14} className="sm:w-4 sm:h-4" />
                     Email *
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email || ''}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  ) : (
                     <p className="text-sm sm:text-base text-gray-800 py-2">{user.email}</p>
-                  )}
-                </div>
+                  </div>
 
                 {/* Phone */}
                 <div>
@@ -421,18 +410,8 @@ function ParticipantDetailContent() {
                     <Phone size={14} className="sm:w-4 sm:h-4" />
                     Phone
                   </label>
-                  {isEditing ? (
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone || ''}
-                      onChange={handleInputChange}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  ) : (
                     <p className="text-sm sm:text-base text-gray-800 py-2">{user.phone || 'N/A'}</p>
-                  )}
-                </div>
+                  </div>
 
                 {/* New Password */}
                 {currentUserId === userId && (

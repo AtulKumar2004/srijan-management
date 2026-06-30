@@ -3,14 +3,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ShieldCheck, Sparkles } from 'lucide-react';
 import { useOtpStore } from '@/store/otpStore';
 
 export default function VerifyOtpPage() {
   const router = useRouter();
-  const { userId, target, channel, clearOtpData, verifyOtp, loading, error: otpError } = useOtpStore();
+  const { userId, target, channel, clearOtpData, verifyOtp, loading, error: otpError, clearError } = useOtpStore();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Clear any stale error on mount
+  useEffect(() => {
+    clearError();
+  }, []);
+
   useEffect(() => {
     // Only redirect to signup if no OTP data AND not currently verifying
     if (!userId || !target) {
@@ -96,9 +102,13 @@ export default function VerifyOtpPage() {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-6 sm:mb-8">
-            <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🔐</div>
+            <div className="flex justify-center mb-3 sm:mb-4">
+              <div className="bg-cyan-900/10 rounded-full p-4">
+                <ShieldCheck size={52} className="text-cyan-900" />
+              </div>
+            </div>
             <h1 className="text-2xl sm:text-4xl font-bold text-cyan-900 mb-2">
-              Verify Your {channel === 'phone' ? 'Phone' : 'Email'}
+              Verify Your Email
             </h1>
             <p className="text-white text-sm sm:text-base px-2 break-all">
               Enter the 6-digit code sent to<br />
@@ -168,7 +178,10 @@ export default function VerifyOtpPage() {
 
           {/* Footer */}
           <div className="text-center mt-8">
-            <p className="text-white text-sm italic">🕉️ Secure verification for your spiritual journey</p>
+            <p className="text-white text-sm italic flex items-center justify-center gap-1.5">
+              <Sparkles size={14} className="text-white/80" />
+              Secure verification for your spiritual journey
+            </p>
           </div>
         </div>
       </div>

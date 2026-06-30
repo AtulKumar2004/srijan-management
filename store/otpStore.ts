@@ -3,24 +3,27 @@ import { create } from 'zustand';
 interface OtpState {
   userId: string;
   target: string;
-  channel: 'phone' | 'email';
+  channel: 'email';
   loading: boolean;
   error: string;
-  setOtpData: (userId: string, target: string, channel: 'phone' | 'email') => void;
+  setOtpData: (userId: string, target: string, channel: 'email') => void;
   clearOtpData: () => void;
+  clearError: () => void;
   verifyOtp: (code: string) => Promise<string>;
 }
 
 export const useOtpStore = create<OtpState>((set, get) => ({
   userId: '',
   target: '',
-  channel: 'email',
+  channel: 'email' as const,
   loading: false,
   error: '',
   
   setOtpData: (userId, target, channel) => set({ userId, target, channel, error: '' }),
   
   clearOtpData: () => set({ userId: '', target: '', channel: 'email', error: '' }),
+
+  clearError: () => set({ error: '' }),
   
   verifyOtp: async (code: string) => {
     const { userId, target } = get();

@@ -45,6 +45,12 @@ export default function SignupPage() {
       return;
     }
 
+    const cleanPhone = formData.phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setValidationError('Phone number must be exactly 10 digits');
+      return;
+    }
+
     try {
       const result = await signup({
         name: formData.name,
@@ -62,7 +68,7 @@ export default function SignupPage() {
       });
 
       // Store OTP data in Zustand store
-      setOtpData(result.userId, result.channel === 'phone' ? formData.phone : formData.email, result.channel as 'phone' | 'email');
+      setOtpData(result.userId, formData.email, 'email');
 
       // Redirect to verify OTP page
       router.push('/verify-otp');
@@ -136,14 +142,17 @@ export default function SignupPage() {
                 <div>
                   <label className="flex items-center gap-2 text-sm font-semibold text-cyan-700 mb-2">
                     <Phone className="w-4 h-4" />
-                    Phone Number
+                    Phone Number *
                   </label>
                   <input
                     type="tel"
+                    required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full px-4 py-3 rounded-lg border-2 border-cyan-200 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 outline-none transition-all"
-                    placeholder="+91 9876543210"
+                    placeholder="10-digit mobile number"
+                    maxLength={10}
+                    pattern="[0-9]{10}"
                   />
                 </div>
 

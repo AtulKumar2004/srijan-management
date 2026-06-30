@@ -55,11 +55,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Optional: double-check mapping by email/phone
-    if (
-      user.email !== target &&
-      user.phone !== target
-    ) {
+    // Optional: double-check mapping by email
+    if (user.email !== target) {
       // target doesn't belong to this user
       return NextResponse.json(
         { error: "OTP target does not match this user" },

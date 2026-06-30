@@ -24,7 +24,7 @@ interface AuthState {
   loading: boolean;
   error: string;
   signup: (data: SignupData) => Promise<{ userId: string; target: string; channel: string }>;
-  login: (data: LoginData) => Promise<{ role: string; redirect: string }>;
+  login: (data: LoginData) => Promise<{ role: string; redirect: string; needsVerification?: boolean; userId?: string; target?: string }>;
   clearError: () => void;
 }
 
@@ -78,6 +78,18 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
 
       const result = await response.json();
+
+      // Account exists but not verified — API resent OTP, redirect silently
+      if (result.needsVerification) {
+        set({ loading: false });
+        return {
+          role: 'guest',
+          redirect: '/verify-otp',
+          needsVerification: true,
+          userId: result.userId,
+          target: result.target,
+        };
+      }
 
       if (!response.ok) {
         throw new Error(result.error || 'Login failed');
