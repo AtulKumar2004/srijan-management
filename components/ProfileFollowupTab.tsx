@@ -232,7 +232,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h3 className="text-lg sm:text-xl font-bold text-gray-800">Mentee Followup Portal</h3>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Take followups and log remarks for your assigned mentees</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Take followups and log remarks for assigned mentees</p>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto relative">
             <Calendar className="w-5 h-5 text-[#A65353]" />

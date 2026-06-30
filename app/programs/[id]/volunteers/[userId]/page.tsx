@@ -60,7 +60,7 @@ function VolunteerDetailContent() {
     const canEditAdministrative = currentUserRole === 'admin' || (!isSelf && Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId)));
     const canEditHandledBy = !isSelf && currentUserRole === 'admin';
 
-    const canViewFollowupTab = currentUserRole === 'volunteer' && isSelf;
+    const canViewFollowupTab = currentUserRole === 'admin' || (currentUserRole === 'volunteer' && isSelf);
     const canViewRemarkTab = currentUserRole === 'admin' || (!isSelf && currentUserRole === 'volunteer');
 
     useEffect(() => {
