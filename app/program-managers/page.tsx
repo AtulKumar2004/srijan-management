@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useModalStore } from "@/store/modalStore";
 import { UserPlus, Eye, Edit, Trash2, Shield, Search, X, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ProgramManager {
@@ -33,6 +34,7 @@ export default function ProgramManagersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { showConfirm } = useModalStore();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -127,7 +129,15 @@ export default function ProgramManagersPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete Program Manager "${name}"?`)) {
+    const confirmed = await showConfirm({
+      title: "Confirm Deletion",
+      message: `Are you sure you want to permanently delete Program Manager "${name}"?`,
+      type: "danger",
+      confirmText: "Yes, Delete",
+      cancelText: "Cancel",
+    });
+
+    if (!confirmed) {
       return;
     }
 

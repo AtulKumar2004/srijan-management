@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { useModalStore } from "@/store/modalStore";
 import { UserPlus, Eye, Edit, Trash2, Shield, Search, X, CheckCircle2, AlertCircle, ArrowLeft, Phone, ChevronDown } from "lucide-react";
 
 interface ProgramManager {
@@ -35,6 +36,7 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [expandedManager, setExpandedManager] = useState<string[]>([]);
+  const { showConfirm } = useModalStore();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -131,7 +133,15 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to permanently delete Program Manager "${name}"?`)) {
+    const confirmed = await showConfirm({
+      title: "Confirm Deletion",
+      message: `Are you sure you want to permanently delete Program Manager "${name}"?`,
+      type: "danger",
+      confirmText: "Yes, Delete",
+      cancelText: "Cancel",
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -262,7 +272,7 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/program-managers/${pm._id}`);
+                              router.push(`/program-managers/${pm._id}?from=${encodeURIComponent(`/programs/${programId}/program-managers`)}`);
                             }}
                             className="hover:underline cursor-pointer text-left w-full truncate block"
                           >
@@ -388,13 +398,13 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
 
                     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mt-3 sm:mt-4">
                       <button
-                        onClick={() => router.push(`/program-managers/${pm._id}`)}
+                        onClick={() => router.push(`/program-managers/${pm._id}?from=${encodeURIComponent(`/programs/${programId}/program-managers`)}`)}
                         className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
                       >
                         Overview
                       </button>
                       <button
-                        onClick={() => router.push(`/program-managers/${pm._id}?edit=true`)}
+                        onClick={() => router.push(`/program-managers/${pm._id}?edit=true&from=${encodeURIComponent(`/programs/${programId}/program-managers`)}`)}
                         className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
                       >
                         Edit

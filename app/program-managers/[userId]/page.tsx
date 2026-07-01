@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProfileAttendanceTab from "@/components/ProfileAttendanceTab";
+import { useModalStore } from "@/store/modalStore";
 import { User, Calendar, Briefcase, Phone, Mail, MapPin, Edit, Save, X, ArrowLeft, Shield, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface UserData {
@@ -47,6 +48,7 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
   const [activeTab, setActiveTab] = useState<"profile" | "attendance">("profile");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const { showConfirm } = useModalStore();
 
   useEffect(() => {
     setIsEditing(searchParams.get("edit") === "true");
@@ -98,7 +100,15 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
     try {
       const payload: any = { ...formData };
       if (payload.role && payload.role !== user?.role && payload.role !== "program_manager") {
-        if (!window.confirm(`Are you sure you want to change role from Program Manager to ${payload.role}?`)) {
+        const roleName = payload.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+        const confirmed = await showConfirm({
+          title: "Confirm Role Change",
+          message: `Are you sure you want to change this person's role from Program Manager to ${roleName}? This will remove them from the Program Managers list.`,
+          type: "danger",
+          confirmText: "Yes, Change Role",
+          cancelText: "Cancel",
+        });
+        if (!confirmed) {
           setSaving(false);
           return;
         }
@@ -112,6 +122,14 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
 
       const data = await res.json();
       if (res.ok) {
+        const roleChanged = payload.role && payload.role !== "program_manager";
+        
+        if (roleChanged) {
+          const from = searchParams.get("from");
+          router.push(from || "/program-managers");
+          return;
+        }
+
         setUser(data.user || payload);
         setIsEditing(false);
         setMessage({ type: "success", text: "Profile updated successfully" });
@@ -195,7 +213,8 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
                 ) : (
                   <button
                     onClick={() => { setIsEditing(false); setFormData(user); }}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold text-sm transition-colors"
+                    disabled={saving}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <X size={16} />
                     Cancel
@@ -206,9 +225,8 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
           </div>
 
           {message && (
-            <div className={`mt-4 p-4 rounded-lg flex items-center gap-3 ${
-              message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-            }`}>
+            <div className={`mt-4 p-4 rounded-lg flex items-center gap-3 ${message.type === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+              }`}>
               {message.type === "success" ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
               <span>{message.text}</span>
             </div>
@@ -218,21 +236,19 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
           <div className="flex gap-4 mt-6 border-b border-gray-200">
             <button
               onClick={() => setActiveTab("profile")}
-              className={`pb-3 px-2 font-bold text-sm transition-colors border-b-2 ${
-                activeTab === "profile"
+              className={`pb-3 px-2 font-bold text-sm transition-colors border-b-2 ${activeTab === "profile"
                   ? "border-purple-600 text-purple-600"
                   : "border-transparent text-gray-500 hover:text-gray-800"
-              }`}
+                }`}
             >
               Profile Details
             </button>
             <button
               onClick={() => setActiveTab("attendance")}
-              className={`pb-3 px-2 font-bold text-sm transition-colors border-b-2 ${
-                activeTab === "attendance"
+              className={`pb-3 px-2 font-bold text-sm transition-colors border-b-2 ${activeTab === "attendance"
                   ? "border-purple-600 text-purple-600"
                   : "border-transparent text-gray-500 hover:text-gray-800"
-              }`}
+                }`}
             >
               Attendance History
             </button>

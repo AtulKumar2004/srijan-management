@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const defaultPassword = "Volunteer@123";
+    const defaultPassword = "Program_Manager@123";
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const user = await User.create({

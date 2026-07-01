@@ -174,12 +174,13 @@ function GuestDetailsContent() {
       });
 
       if (response.ok) {
-        // If the role was changed away from 'guest', redirect immediately
-        // so the guest profile page never flashes its content for a removed user.
-        if (formData.role && formData.role !== "guest") {
+        const roleChanged = formData.role && formData.role !== "guest";
+        
+        if (roleChanged) {
           router.push("/guests");
           return;
         }
+
         await fetchGuestDetails();
         setEditing(false);
       } else {

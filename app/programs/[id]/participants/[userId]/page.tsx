@@ -194,6 +194,18 @@ function ParticipantDetailContent() {
         setIsEditing(false);
         setTimeout(() => setMessage(null), 4000);
       } else if (res.ok) {
+        // Track if role changed
+        const newRole = formData.role;
+        const originalRole = user?.role;
+        const roleChanged = newRole && originalRole && newRole !== originalRole;
+        
+        if (roleChanged) {
+          setMessage({ type: 'success', text: 'Role updated successfully! Redirecting...' });
+          setToast({ type: 'success', text: 'Role updated successfully.' });
+          router.push(`/programs/${programId}/participants`);
+          return;
+        }
+
         setMessage({ type: 'success', text: 'User updated successfully!' });
         setToast({ type: 'success', text: 'User updated successfully.' });
         setUser(data.user);
