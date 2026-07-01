@@ -19,8 +19,8 @@ export async function GET(
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
-    if (decoded.role !== "admin") {
-      return NextResponse.json({ error: "Only admins can view graphical analysis" }, { status: 403 });
+    if (decoded.role !== "admin" && decoded.role !== "program_manager") {
+      return NextResponse.json({ error: "Only admins and program managers can view graphical analysis" }, { status: 403 });
     }
 
     const { id: programId } = await params;

@@ -115,8 +115,8 @@ export default function AdminDashboard() {
       if (res.ok && contentType?.includes("application/json")) {
         const data = await res.json();
         if (data.user) {
-          // Allow admins, volunteers, and participants
-          if (["admin", "volunteer", "participant"].includes(data.user.role)) {
+          // Allow admins, program managers, volunteers, and participants
+          if (["admin", "program_manager", "volunteer", "participant"].includes(data.user.role)) {
             setUser(data.user);
             fetchPrograms(data.user);
           } else {
@@ -315,7 +315,7 @@ export default function AdminDashboard() {
             {user?.role === "admin" && (
               <button
                 onClick={() => router.push('/guests')}
-                className="flex bg-green-200 items-center cursor-pointer gap-3 px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-emerald-600 group"
+                className="flex bg-green-200 hover:bg-emerald-300 items-center cursor-pointer gap-3 px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-emerald-600 group"
               >
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-600 transition-colors">
                   <svg className="w-6 h-6 text-emerald-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,11 +329,12 @@ export default function AdminDashboard() {
               </button>
             )}
 
+
             {/* Outreach Card - only for admins and volunteers */}
             {user?.role !== "participant" && (
               <button
                 onClick={() => setShowOutreachModal(true)}
-                className="flex bg-red-200 items-center gap-3 px-6 py-3 cursor-pointer rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-red-600 group"
+                className="flex bg-red-200 hover:bg-red-300 items-center gap-3 px-6 py-3 cursor-pointer rounded-lg shadow-md hover:shadow-lg transition-all border-2 border-red-600 group"
               >
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center group-hover:bg-red-600 transition-colors">
                   <svg className="w-6 h-6 text-red-600 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">

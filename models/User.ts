@@ -7,7 +7,7 @@ export interface IUser extends Document {
   phone?: string;
   password: string;
 
-  role: "admin" | "volunteer" | "participant" | "guest";
+  role: "admin" | "program_manager" | "volunteer" | "participant" | "guest";
 
   profession?: string;
   homeTown?: string;
@@ -27,6 +27,7 @@ export interface IUser extends Document {
   maritalStatus?: string; // Single, Married, etc.
   participantsUnder?: number; // For volunteers - number of participants they handle
   programs?: string[]; // Array of programIds user is enrolled in
+  levelHistory?: { level: number; joinedAt: Date }[];
 
   isActive?: boolean;
   isArchived?: boolean;
@@ -46,7 +47,7 @@ const UserSchema = new Schema<IUser>(
     // role controlled by admin or volunteers
     role: {
       type: String,
-      enum: ["admin", "volunteer", "participant", "guest"],
+      enum: ["admin", "program_manager", "volunteer", "participant", "guest"],
       default: "guest",
       index: true,
     },
@@ -67,17 +68,27 @@ const UserSchema = new Schema<IUser>(
 
     level: Number,
     grade: String,
-    registeredBy: { type: String, index: true }, 
+    registeredBy: { type: String, index: true },
     handledBy: { type: String, index: true },
     maritalStatus: String,
     participantsUnder: Number,
     programs: { type: [String], index: true },
+    levelHistory: [
+      {
+        level: { type: Number, required: true },
+        joinedAt: { type: Date, default: Date.now },
+      },
+    ],
 
     isActive: { type: Boolean, default: false }, // Only active after OTP verification
     isArchived: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );
+
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.User;
+}
 
 export default mongoose.models.User ||
   mongoose.model<IUser>("User", UserSchema);

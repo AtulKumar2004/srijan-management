@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     // Build query to find volunteer or participant by phone and optionally filter by program and level
     const query: any = {
       phone: { $in: [phone, normalizedPhone] },
-      role: { $in: ["participant", "volunteer"] },
+      role: { $in: ["participant", "volunteer", "program_manager"] },
       isArchived: { $ne: true }
     };
 
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       // Fallback: search by phone number across all non-archived participants or volunteers
       participant = await User.findOne({
         phone: { $in: [phone, normalizedPhone] },
-        role: { $in: ["participant", "volunteer"] },
+        role: { $in: ["participant", "volunteer", "program_manager"] },
         isArchived: { $ne: true }
       }).select("-password");
     }

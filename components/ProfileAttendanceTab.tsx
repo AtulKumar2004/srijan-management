@@ -84,30 +84,32 @@ export default function ProfileAttendanceTab({ userId, programId }: { userId: st
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Summary Box */}
       <div className="bg-[#FFF8E7] border-2 border-[#D4A574] rounded-2xl p-4 sm:p-6 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-center sm:text-left items-center font-bold text-gray-800 text-sm sm:text-base">
-          <div className="lg:col-span-1 text-lg sm:text-xl text-[#8B6B61] border-b sm:border-b-0 pb-2 sm:pb-0 border-[#D4A574]">
-            Total Attended : <span className="text-gray-900 font-extrabold ml-1">{data.totalAttended}</span>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 font-bold text-gray-800">
+          <div className="text-center lg:text-left text-lg sm:text-xl text-[#8B6B61] border-b lg:border-b-0 pb-3 lg:pb-0 border-[#D4A574]/60">
+            Total Attended : <span className="text-gray-900 font-extrabold ml-1.5">{data.totalAttended}</span>
           </div>
-          <div className="bg-white/80 px-3 py-2 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
-            Attended (Level 1) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[1] || 0}</span>
-          </div>
-          <div className="bg-white/80 px-3 py-2 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
-            Attended (Level 2) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[2] || 0}</span>
-          </div>
-          <div className="bg-white/80 px-3 py-2 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
-            Attended (Level 3) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[3] || 0}</span>
-          </div>
-          <div className="bg-white/80 px-3 py-2 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
-            Attended (Level 4) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[4] || 0}</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 flex-1 lg:max-w-3xl text-xs sm:text-sm">
+            <div className="bg-white/90 px-2.5 py-2 sm:py-2.5 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
+              Attended (L1) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[1] || 0}</span>
+            </div>
+            <div className="bg-white/90 px-2.5 py-2 sm:py-2.5 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
+              Attended (L2) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[2] || 0}</span>
+            </div>
+            <div className="bg-white/90 px-2.5 py-2 sm:py-2.5 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
+              Attended (L3) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[3] || 0}</span>
+            </div>
+            <div className="bg-white/90 px-2.5 py-2 sm:py-2.5 rounded-xl border border-[#D4A574]/50 text-center shadow-xs">
+              Attended (L4) : <span className="text-emerald-700 font-extrabold ml-1">{data.attendedLevelCounts[4] || 0}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Pictorial Months Container */}
-      <div className="bg-[#FFFDF9] border-2 border-[#D4A574] rounded-2xl p-4 sm:p-6 shadow-md max-h-[650px] overflow-y-auto">
+      <div className="bg-[#FFFDF9] border-2 border-[#D4A574] rounded-2xl p-3 sm:p-6 shadow-md max-h-[650px] overflow-y-auto">
         {monthKeys.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 font-medium">
-            <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-400 opacity-60" />
+          <div className="text-center py-12 text-gray-500 font-medium text-sm sm:text-base">
+            <Calendar className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-400 opacity-60" />
             No sessions recorded for this student in this program yet.
           </div>
         ) : (
@@ -120,35 +122,35 @@ export default function ProfileAttendanceTab({ userId, programId }: { userId: st
                   className="flex flex-col sm:flex-row border border-gray-300 rounded-xl overflow-hidden shadow-sm bg-white"
                 >
                   {/* Left Year/Month Header Column */}
-                  <div className="sm:w-36 bg-[#8B6B61] text-white flex sm:flex-col justify-between sm:justify-center items-center px-4 py-3 sm:py-4 flex-shrink-0 border-b sm:border-b-0 sm:border-r border-[#6B4B41]">
+                  <div className="sm:w-36 bg-[#8B6B61] text-white flex sm:flex-col justify-between sm:justify-center items-center px-4 py-2.5 sm:py-4 flex-shrink-0 border-b sm:border-b-0 sm:border-r border-[#6B4B41]">
                     <span className="text-xs sm:text-sm font-semibold tracking-wider opacity-90">{group.year}</span>
-                    <span className="text-base sm:text-lg font-bold">{group.monthName}</span>
+                    <span className="text-sm sm:text-lg font-bold">{group.monthName}</span>
                   </div>
 
                   {/* Right Session Columns Container */}
-                  <div className="flex-1 p-3 sm:p-4 flex flex-wrap gap-3 items-center bg-[#FAF6F0]/60">
+                  <div className="flex-1 p-2.5 sm:p-4 grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 items-center bg-[#FAF6F0]/60">
                     {group.sessions.map((sess, idx) => (
                       <div
                         key={idx}
-                        className="flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-xs min-w-[135px] sm:min-w-[155px] transition-transform hover:scale-102"
+                        className="flex flex-col rounded-lg overflow-hidden border border-gray-300 shadow-xs w-full sm:w-auto sm:min-w-[150px] transition-transform hover:scale-102"
                       >
                         {/* Session Date & Level Header */}
-                        <div className="bg-[#8B6B61] text-white py-2 px-3 text-center font-bold text-xs sm:text-sm tracking-tight">
+                        <div className="bg-[#8B6B61] text-white py-1.5 sm:py-2 px-2 sm:px-3 text-center font-bold text-xs sm:text-sm tracking-tight">
                           {sess.dateStr} (L{sess.level})
                         </div>
 
                         {/* Status Box */}
                         <div
-                          className={`py-2.5 px-3 text-center font-extrabold text-xs sm:text-sm uppercase tracking-wide flex items-center justify-center gap-1.5 ${
+                          className={`py-2 sm:py-2.5 px-2 sm:px-3 text-center font-extrabold text-xs sm:text-sm uppercase tracking-wide flex items-center justify-center gap-1 sm:gap-1.5 ${
                             sess.status === "Present"
                               ? "bg-[#52C41A] text-white shadow-inner"
                               : "bg-[#F2C94C] text-gray-900 shadow-inner"
                           }`}
                         >
                           {sess.status === "Present" ? (
-                            <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                            <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                           ) : (
-                            <XCircle className="w-4 h-4 flex-shrink-0" />
+                            <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                           )}
                           <span>{sess.status}</span>
                         </div>

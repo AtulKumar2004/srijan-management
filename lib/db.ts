@@ -20,10 +20,17 @@ export async function connectDB() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      // Keep a small pool – serverless functions are short-lived
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      // Fail fast rather than queue indefinitely
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 30000,
+      // Heartbeat keeps the connection warm between requests
+      heartbeatFrequencyMS: 10000,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log("✅ MongoDB Connected:", mongoose.connection.host);
       return mongoose;
     });
   }

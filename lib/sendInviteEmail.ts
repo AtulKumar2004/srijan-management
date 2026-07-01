@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
+import { getAppUrl } from "@/lib/getAppUrl";
 
 export async function sendInviteEmail(email: string, name: string, defaultPassword: string, role: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000');
+  const appUrl = getAppUrl();
   const loginLink = `${appUrl}/login`;
 
   try {

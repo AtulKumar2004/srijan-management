@@ -61,7 +61,7 @@ function ParticipantDetailContent() {
   const [activeTab, setActiveTab] = useState<'profile' | 'remark' | 'attendance'>('profile');
 
   const isSelf = Boolean(currentUserId && userId && String(currentUserId) === String(userId));
-  const canViewRemarkTab = (!isSelf && currentUserRole === 'volunteer') || currentUserRole === 'admin';
+  const canViewRemarkTab = (!isSelf && currentUserRole === 'volunteer') || currentUserRole === 'admin' || currentUserRole === 'program_manager';
 
   useEffect(() => {
     fetchCurrentUser();
@@ -72,7 +72,7 @@ function ParticipantDetailContent() {
 
   useEffect(() => {
     if (user && currentUserRole && currentUserId) {
-      const allowed = currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user.handledBy || user.handledBy === 'unassigned' || user.handledBy === currentUserId)) || userId === currentUserId;
+      const allowed = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!user.handledBy || user.handledBy === 'unassigned' || user.handledBy === currentUserId)) || userId === currentUserId;
       if (!allowed) {
         setIsEditing(false);
       } else {
@@ -242,8 +242,8 @@ function ParticipantDetailContent() {
     );
   }
 
-  const canEditHandledBy = currentUserId !== userId && (currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned')));
-  const canEditAdministrative = currentUserRole === 'admin' || (currentUserId !== userId && currentUserRole === 'volunteer');
+  const canEditHandledBy = currentUserId !== userId && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned')));
+  const canEditAdministrative = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserId !== userId && currentUserRole === 'volunteer');
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50" style={{
@@ -286,8 +286,8 @@ function ParticipantDetailContent() {
               type="button"
               onClick={() => setActiveTab('profile')}
               className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'profile'
-                  ? 'border-[#A65353] text-[#A65353]'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                ? 'border-[#A65353] text-[#A65353]'
+                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                 }`}
             >
               Profile
@@ -297,8 +297,8 @@ function ParticipantDetailContent() {
                 type="button"
                 onClick={() => setActiveTab('remark')}
                 className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'remark'
-                    ? 'border-[#A65353] text-[#A65353]'
-                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                  ? 'border-[#A65353] text-[#A65353]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                   }`}
               >
                 Remark
@@ -308,8 +308,8 @@ function ParticipantDetailContent() {
               type="button"
               onClick={() => setActiveTab('attendance')}
               className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'attendance'
-                  ? 'border-[#A65353] text-[#A65353]'
-                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                ? 'border-[#A65353] text-[#A65353]'
+                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                 }`}
             >
               Attendance
@@ -326,7 +326,7 @@ function ParticipantDetailContent() {
         )}
 
         {activeTab === 'remark' && (
-          <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
+          <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || currentUserRole === 'program_manager' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
         )}
 
         {activeTab === 'attendance' && (
@@ -342,7 +342,7 @@ function ParticipantDetailContent() {
                   <User size={20} className="sm:w-6 sm:h-6" />
                   Personal Information
                 </h2>
-                {(currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned' || user?.handledBy === currentUserId)) || userId === currentUserId) && (
+                {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!user?.handledBy || user?.handledBy === 'unassigned' || user?.handledBy === currentUserId)) || userId === currentUserId) && (
                   !isEditing ? (
                     <button
                       type="button"
@@ -401,8 +401,8 @@ function ParticipantDetailContent() {
                     <Mail size={14} className="sm:w-4 sm:h-4" />
                     Email *
                   </label>
-                    <p className="text-sm sm:text-base text-gray-800 py-2">{user.email}</p>
-                  </div>
+                  <p className="text-sm sm:text-base text-gray-800 py-2">{user.email}</p>
+                </div>
 
                 {/* Phone */}
                 <div>
@@ -410,8 +410,8 @@ function ParticipantDetailContent() {
                     <Phone size={14} className="sm:w-4 sm:h-4" />
                     Phone
                   </label>
-                    <p className="text-sm sm:text-base text-gray-800 py-2">{user.phone || 'N/A'}</p>
-                  </div>
+                  <p className="text-sm sm:text-base text-gray-800 py-2">{user.phone || 'N/A'}</p>
+                </div>
 
                 {/* New Password */}
                 {currentUserId === userId && (
@@ -482,7 +482,7 @@ function ParticipantDetailContent() {
                   <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
                     Role *
                   </label>
-                  {isEditing && currentUserRole === 'admin' && !isSelf ? (
+                  {isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer') && !isSelf ? (
                     <select
                       name="role"
                       value={formData.role || ''}
@@ -493,14 +493,15 @@ function ParticipantDetailContent() {
                       <option value="guest">Guest</option>
                       <option value="participant">Participant</option>
                       <option value="volunteer">Volunteer</option>
-                      <option value="admin">Admin</option>
+                      {currentUserRole === 'admin' && <option value="program_manager">Program Manager</option>}
+                      {currentUserRole === 'admin' && <option value="admin">Admin</option>}
                     </select>
                   ) : (
                     <p className="text-sm sm:text-base text-gray-800 py-2 capitalize">
                       <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
-                          user.role === 'volunteer' ? 'bg-blue-100 text-blue-800' :
-                            user.role === 'participant' ? 'bg-green-100 text-green-800' :
-                              'bg-gray-100 text-gray-800'
+                        user.role === 'volunteer' ? 'bg-blue-100 text-blue-800' :
+                          user.role === 'participant' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
                         }`}>
                         {user.role}
                       </span>

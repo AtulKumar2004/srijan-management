@@ -73,9 +73,9 @@ export async function DELETE(
     }
 
     if (isPermanent) {
-      if (decoded.role !== "admin") {
+      if (decoded.role !== "admin" && decoded.role !== "program_manager") {
         return NextResponse.json(
-          { error: "Unauthorized - Only admin can permanently delete users" },
+          { error: "Unauthorized - Only admin or program manager can permanently delete users" },
           { status: 403 }
         );
       }
@@ -92,7 +92,7 @@ export async function DELETE(
       );
     }
 
-    if (decoded.role !== "admin") {
+    if (decoded.role !== "admin" && decoded.role !== "program_manager") {
       const isMentee = Boolean(targetUser.handledBy && String(targetUser.handledBy) === String(decoded.userId));
       const isUnassigned = !targetUser.handledBy || targetUser.handledBy === "unassigned";
       

@@ -166,6 +166,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
   };
 
   useEffect(() => {
+    if (datesLoading) return;
     if (userId && selectedDate) {
       if (!availableDates.includes(selectedDate)) {
         setMentees([]);
@@ -173,7 +174,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
       }
       fetchMenteesFollowup();
     }
-  }, [userId, selectedDate, programId, availableDates]);
+  }, [userId, selectedDate, programId, datesLoading]);
 
   const handleSaveMentee = async (menteeId: string) => {
     const currentEdit = edits[menteeId];

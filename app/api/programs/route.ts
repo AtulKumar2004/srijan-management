@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!['admin', 'volunteer', 'participant'].includes(decoded.role)) {
+    if (!['admin', 'program_manager', 'volunteer', 'participant'].includes(decoded.role)) {
       return NextResponse.json(
         { error: "Access denied - Invalid role" },
         { status: 403 }
@@ -48,8 +48,8 @@ export async function GET(req: Request) {
     try {
       let programs;
       
-      // If volunteer or participant, only show programs they're enrolled in
-      if (decoded.role === "volunteer" || decoded.role === "participant") {
+      // If program_manager, volunteer or participant, only show programs they're enrolled in
+      if (decoded.role === "program_manager" || decoded.role === "volunteer" || decoded.role === "participant") {
         const user = await User.findById(decoded.userId).select('programs');
         const enrolledProgramIds = user?.programs || [];
         

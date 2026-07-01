@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     const actorId = decoded.userId;
     const actorRole = decoded.role;
 
-    if (actorRole !== "admin" && actorRole !== "volunteer") {
-      return NextResponse.json({ error: "Forbidden: Only admins and volunteers can bulk update volunteers" }, { status: 403 });
+    if (actorRole !== "admin" && actorRole !== "volunteer" && actorRole !== "program_manager") {
+      return NextResponse.json({ error: "Forbidden: Only admins, program managers, and volunteers can bulk update volunteers" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
       "gender", "maritalStatus", "participantsUnder", "handledBy", "isArchived"
     ];
 
-    // Only admins can reassign handledBy (mentor volunteer)
-    if (actorRole !== "admin" && updates.handledBy !== undefined) {
-      return NextResponse.json({ error: "Only admins can assign mentors to volunteers" }, { status: 403 });
+    // Only admins or program managers can reassign handledBy (mentor volunteer)
+    if (actorRole !== "admin" && actorRole !== "program_manager" && updates.handledBy !== undefined) {
+      return NextResponse.json({ error: "Only admins or program managers can assign mentors to volunteers" }, { status: 403 });
     }
 
     const sanitizedUpdates: any = {};
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     let modifiedCount = 0;
     for (const target of targets) {
       let canUpdate = false;
-      if (actorRole === "admin") {
+      if (actorRole === "admin" || actorRole === "program_manager") {
         canUpdate = true;
       } else if (actorRole === "volunteer") {
         if (String(target._id) === String(actorId)) {

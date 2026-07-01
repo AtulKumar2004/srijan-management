@@ -1,4 +1,99 @@
 @import "tailwindcss";
+
+/* ─── Typography & rendering ─────────────────────────────────────────────── */
 body {
   font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeSpeed;
+}
+
+/* ─── Smooth transitions on interactive elements ─────────────────────────── */
+*,
+*::before,
+*::after {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
+}
+
+/* Opt-out for elements that should NOT animate (e.g. spinners set their own) */
+.no-transition,
+.no-transition *,
+[class*="animate-"] {
+  transition: none !important;
+}
+
+/* ─── Cursor pointer on every interactive element ────────────────────────── */
+button,
+[role="button"],
+a,
+label[for],
+select,
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+summary {
+  cursor: pointer;
+}
+
+/* Respect disabled state */
+button:disabled,
+input:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ─── Default hover elevation for cards & buttons ────────────────────────── */
+
+/* Generic card-like divs already get hover treatment via Tailwind classes in
+   the markup.  Below we only add a subtle lift on elements that lack it. */
+
+/* Buttons that use inline bg via style= (not Tailwind) still get a small dim */
+button:not(:disabled):hover {
+  filter: brightness(0.94);
+}
+
+/* Prevent double-dimming when Tailwind hover:bg-* is already applied
+   (Tailwind classes are more specific, so they override filter anyway) */
+button[class*="hover:bg-"]:not(:disabled):hover,
+button[class*="hover:text-"]:not(:disabled):hover {
+  filter: none;
+}
+
+/* ─── Link underline on hover ────────────────────────────────────────────── */
+a:not([class]):hover {
+  text-decoration: underline;
+}
+
+/* ─── Focus ring accessibility ───────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #a65353;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Scrollbar styling ──────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* ─── Image performance ──────────────────────────────────────────────────── */
+img {
+  content-visibility: auto;
 }

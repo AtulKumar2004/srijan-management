@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getAppUrl } from "@/lib/getAppUrl";
 
 type RoleChangeEmailParams = {
   adminEmail: string;
@@ -27,7 +28,7 @@ export async function sendRoleChangeRequestEmail(params: RoleChangeEmailParams) 
     requestedRole = "volunteer",
   } = params;
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:3000');
+  const appUrl = getAppUrl();
   const reviewLink = `${appUrl}/notifications?requestId=${requestId}`;
 
   try {

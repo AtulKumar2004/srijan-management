@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { connectDB } from "@/lib/db";
 import VolunteerCreationRequest from "@/models/VolunteerCreationRequest";
+import User from "@/models/User";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,13 +17,19 @@ export async function GET(req: NextRequest) {
     const actorId = decoded.userId;
     const actorRole = decoded.role;
 
-    if (!["admin", "volunteer"].includes(actorRole)) {
+    if (!["admin", "program_manager", "volunteer"].includes(actorRole)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    const query = actorRole === "admin"
-      ? { programAdmin: actorId }
-      : { requestedBy: actorId };
+    let query: any;
+    if (actorRole === "admin") {
+      query = { programAdmin: actorId };
+    } else if (actorRole === "program_manager") {
+      const pmUser = await User.findById(actorId).select("programs");
+      query = { program: { $in: pmUser?.programs || [] } };
+    } else {
+      query = { requestedBy: actorId };
+    }
 
     const requests = await VolunteerCreationRequest.find(query)
       .populate("requestedBy", "name email phone level")

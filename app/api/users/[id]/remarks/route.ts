@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!["admin", "volunteer"].includes(decoded.role)) {
+    if (!["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (!["admin", "volunteer"].includes(decoded.role)) {
+    if (!["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -81,9 +81,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Enforce that only the mentor of the person or the admin can add remarks
-    if (decoded.role !== "admin" && String(targetUser.handledBy) !== String(decoded.userId)) {
-      return NextResponse.json({ error: "Only the mentor of this person or an admin can add remarks" }, { status: 403 });
+    // Enforce that only the mentor of the person or an admin/program_manager can add remarks
+    if (decoded.role !== "admin" && decoded.role !== "program_manager" && String(targetUser.handledBy) !== String(decoded.userId)) {
+      return NextResponse.json({ error: "Only the mentor of this person, a program manager, or an admin can add remarks" }, { status: 403 });
     }
 
     const followUpDate = date ? new Date(date) : new Date();

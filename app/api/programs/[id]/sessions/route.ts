@@ -94,11 +94,18 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
-    if (decoded.role !== "admin") {
-      return NextResponse.json({ error: "Only admins can create sessions" }, { status: 403 });
+    const { id } = await params;
+    let isProgramManagerForProgram = false;
+    if (decoded.role === "program_manager") {
+      const pmUser = await User.findById(decoded.userId).select("programs");
+      if (pmUser?.programs && pmUser.programs.map(String).includes(String(id))) {
+        isProgramManagerForProgram = true;
+      }
     }
 
-    const { id } = await params;
+    if (decoded.role !== "admin" && !isProgramManagerForProgram) {
+      return NextResponse.json({ error: "Only admins or assigned program managers can create sessions" }, { status: 403 });
+    }
     const body = await req.json();
     const { sessionTopic, sessionDate, speakerName, level, description } = body;
 

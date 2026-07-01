@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Calendar, Filter, ChevronLeft, ChevronRight, User, Phone, Save, CheckCircle2, AlertCircle } from "lucide-react";
+import { Calendar, Filter, ChevronLeft, ChevronRight, User, Phone, Save, CheckCircle2, AlertCircle, Search } from "lucide-react";
 import Pagination from "@/components/Pagination";
 
 interface FollowUpItem {
@@ -44,6 +44,7 @@ export default function FollowUpsPage() {
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [edits, setEdits] = useState<{ [key: string]: { status: string; remarks: string } }>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -106,7 +107,7 @@ export default function FollowUpsPage() {
   }, [programId]);
 
   useEffect(() => {
-    if (selectedDate && currentUserRole === "admin") {
+    if (selectedDate && (currentUserRole === "admin" || currentUserRole === "program_manager")) {
       fetchFollowUps();
     }
   }, [selectedDate, programId, currentUserRole]);
@@ -214,15 +215,26 @@ export default function FollowUpsPage() {
   const followUpsForActiveLevel = followUps.filter(f => Number(f.user.level || 1) === activeLevelTab);
 
   const filteredFollowUps = followUpsForActiveLevel.filter(f => {
-    if (!filterStatus) return true;
-    const currentStatus = edits[f.user._id]?.status || f.status;
-    return currentStatus === filterStatus;
+    if (filterStatus) {
+      const currentStatus = edits[f.user._id]?.status || f.status;
+      if (currentStatus !== filterStatus) return false;
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      const { name, phone, profession } = f.user;
+      if (
+        !name?.toLowerCase().includes(q) &&
+        !phone?.toLowerCase().includes(q) &&
+        !profession?.toLowerCase().includes(q)
+      ) return false;
+    }
+    return true;
   });
 
   const currentStatuses = followUpsForActiveLevel.map(f => edits[f.user._id]?.status || f.status || "Not Called");
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedDate, filterStatus, activeLevelTab]);
+  }, [selectedDate, filterStatus, activeLevelTab, searchTerm]);
 
   const stats = {
     total: followUpsForActiveLevel.length,
@@ -241,14 +253,14 @@ export default function FollowUpsPage() {
     );
   }
 
-  if (currentUserRole !== "admin") {
+  if (currentUserRole !== "admin" && currentUserRole !== "program_manager") {
     return (
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header />
         <main className="flex-grow container mx-auto px-4 py-16 flex flex-col items-center justify-center max-w-lg text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
-          <p className="text-gray-600 mb-6">This Follow-ups section is restricted to Program Admins only.</p>
+          <p className="text-gray-600 mb-6">This Follow-ups section is restricted to Program Admins and Program Managers only.</p>
           <button
             onClick={() => router.back()}
             className="px-6 py-2.5 bg-[#A65353] text-white rounded-lg font-semibold hover:bg-[#8B4545] transition-colors cursor-pointer"
@@ -297,6 +309,23 @@ export default function FollowUpsPage() {
 
         {/* Controls */}
         <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
+          {/* Search Bar */}
+          <div className="mb-4 sm:mb-5">
+            <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+              <Search className="w-4 h-4 text-[#A65353]" />
+              Search People
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, phone, or profession…"
+                className="w-full pl-10 pr-3 py-2.5 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#A65353] focus:border-[#A65353] shadow-sm"
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
             {/* Date Picker Tool */}
             <div className="relative">

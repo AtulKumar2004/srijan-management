@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     const actorId = decoded.userId;
     const actorRole = decoded.role;
 
-    if (actorRole !== "admin" && actorRole !== "volunteer") {
-      return NextResponse.json({ error: "Forbidden: Only admins and volunteers can bulk update participants" }, { status: 403 });
+    if (actorRole !== "admin" && actorRole !== "volunteer" && actorRole !== "program_manager") {
+      return NextResponse.json({ error: "Forbidden: Only admins, program managers, and volunteers can bulk update participants" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     let modifiedCount = 0;
     for (const target of targets) {
       let canUpdate = false;
-      if (actorRole === "admin") {
+      if (actorRole === "admin" || actorRole === "program_manager") {
         canUpdate = true;
       } else if (actorRole === "volunteer") {
         if (target.handledBy && String(target.handledBy) === String(actorId)) {

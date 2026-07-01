@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import jwt from "jsonwebtoken";
+import { sendRoleChangeConfirmationEmail } from "@/lib/sendRoleChangeConfirmationEmail";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +54,8 @@ export async function POST(req: NextRequest) {
 
     let modifiedCount = 0;
     for (const target of targets) {
+      const oldRole = target.role;
+      const oldLevel = Number(target.level || 1);
       for (const key of Object.keys(sanitizedUpdates)) {
         if (key !== "programId") {
           target[key] = sanitizedUpdates[key];
@@ -69,7 +72,17 @@ export async function POST(req: NextRequest) {
           target.grade = 'D';
         }
       }
+      const newLevel = Number(target.level || 1);
+      if (!target.levelHistory || target.levelHistory.length === 0) {
+        target.levelHistory = [{ level: oldLevel, joinedAt: target.createdAt || new Date() }];
+      }
+      if (newLevel !== oldLevel) {
+        target.levelHistory.push({ level: newLevel, joinedAt: new Date() });
+      }
       await target.save();
+      if (oldRole !== target.role) {
+        await sendRoleChangeConfirmationEmail(target.email, target.name, oldRole, target.role);
+      }
       modifiedCount++;
     }
 

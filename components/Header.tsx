@@ -49,7 +49,7 @@ export default function Header() {
               <h1 className="text-xl sm:text-2xl text-amber-700 font-bold">Srijan</h1>
             </button>
           </div>
-          
+
           <nav className="hidden md:flex items-center space-x-2 sm:space-x-3">
             {user && user.role !== "guest" && !user.isArchived && (
               <button
@@ -59,10 +59,10 @@ export default function Header() {
                 Dashboard
               </button>
             )}
-            
+
             {user && (
               <div className="flex items-center space-x-2 sm:space-x-3">
-                {(user.role === "admin" || user.role === "volunteer") && !user.isArchived && (
+                {(user.role === "admin" || user.role === "program_manager" || user.role === "volunteer") && !user.isArchived && (
                   <button
                     onClick={() => router.push("/notifications")}
                     className="px-3.5 py-1.5 bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] transition-all text-xs sm:text-sm font-bold whitespace-nowrap flex items-center gap-1.5 cursor-pointer shadow-sm"
@@ -100,7 +100,7 @@ export default function Header() {
         {isMenuOpen && (
           <nav className="md:hidden mt-3 pb-3 border-t border-gray-300 pt-3 space-y-2.5">
             {user && user.role !== "guest" && !user.isArchived && (
-              <button 
+              <button
                 onClick={() => {
                   setIsMenuOpen(false);
                   router.push("/dashboard");
@@ -110,10 +110,10 @@ export default function Header() {
                 Dashboard
               </button>
             )}
-            
+
             {user && (
               <>
-                {(user.role === "admin" || user.role === "volunteer") && !user.isArchived && (
+                {(user.role === "admin" || user.role === "program_manager" || user.role === "volunteer") && !user.isArchived && (
                   <button
                     onClick={() => {
                       setIsMenuOpen(false);

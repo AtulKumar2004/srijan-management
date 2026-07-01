@@ -14,10 +14,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { id } = await params;
-    const isAdmin = decoded.role === "admin";
+    const isAdmin = decoded.role === "admin" || decoded.role === "program_manager";
     const isSelfVolunteer = decoded.role === "volunteer" && String(decoded.userId) === String(id);
     if (!isAdmin && !isSelfVolunteer) {
-      return NextResponse.json({ error: "Forbidden: Only admins or the volunteer themselves can access this." }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Only admins, program managers or the volunteer themselves can access this." }, { status: 403 });
     }
     const { searchParams } = new URL(req.url);
     const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
@@ -87,10 +87,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { id } = await params;
-    const isAdmin = decoded.role === "admin";
+    const isAdmin = decoded.role === "admin" || decoded.role === "program_manager";
     const isSelfVolunteer = decoded.role === "volunteer" && String(decoded.userId) === String(id);
     if (!isAdmin && !isSelfVolunteer) {
-      return NextResponse.json({ error: "Forbidden: Only admins or the volunteer themselves can access this." }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Only admins, program managers or the volunteer themselves can access this." }, { status: 403 });
     }
 
     const body = await req.json();

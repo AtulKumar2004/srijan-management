@@ -2,8 +2,8 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IRoleChangeRequest extends Document {
   participant: mongoose.Types.ObjectId;
-  currentRole: "participant" | "guest" | "outreach" | "volunteer" | "admin";
-  requestedRole: "participant" | "guest" | "outreach" | "volunteer" | "admin";
+  currentRole: "participant" | "guest" | "outreach" | "volunteer" | "admin" | "program_manager";
+  requestedRole: "participant" | "guest" | "outreach" | "volunteer" | "admin" | "program_manager";
   requestedBy: mongoose.Types.ObjectId;
   program: mongoose.Types.ObjectId;
   programAdmin: mongoose.Types.ObjectId;
@@ -20,12 +20,12 @@ const RoleChangeRequestSchema = new Schema<IRoleChangeRequest>(
     participant: { type: Schema.Types.ObjectId, ref: "User", required: true },
     currentRole: {
       type: String,
-      enum: ["admin", "volunteer", "participant", "guest", "outreach"],
+      enum: ["admin", "program_manager", "volunteer", "participant", "guest", "outreach"],
       required: true,
     },
     requestedRole: {
       type: String,
-      enum: ["admin", "volunteer", "participant", "guest", "outreach"],
+      enum: ["admin", "program_manager", "volunteer", "participant", "guest", "outreach"],
       required: true,
     },
     requestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -46,6 +46,10 @@ const RoleChangeRequestSchema = new Schema<IRoleChangeRequest>(
 RoleChangeRequestSchema.index({ participant: 1, program: 1, status: 1 });
 RoleChangeRequestSchema.index({ programAdmin: 1, status: 1, createdAt: -1 });
 RoleChangeRequestSchema.index({ requestedBy: 1, createdAt: -1 });
+
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.RoleChangeRequest;
+}
 
 export default mongoose.models.RoleChangeRequest ||
   mongoose.model<IRoleChangeRequest>("RoleChangeRequest", RoleChangeRequestSchema);

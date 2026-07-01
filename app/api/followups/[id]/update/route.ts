@@ -13,8 +13,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     
-    // Only admins and volunteers can update follow-ups
-    if (!["admin", "volunteer"].includes(decoded.role)) {
+    // Only admins, program managers, and volunteers can update follow-ups
+    if (!["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

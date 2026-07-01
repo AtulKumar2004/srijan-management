@@ -110,6 +110,7 @@ export default function ParticipantsPage() {
     name: "",
     email: "",
     phone: "",
+    level: "",
   });
 
   useEffect(() => {
@@ -372,9 +373,11 @@ export default function ParticipantsPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...newParticipant,
+          name: newParticipant.name,
+          email: newParticipant.email,
+          phone: newParticipant.phone,
           programs: [programId],
-          level: 1,
+          level: newParticipant.level ? parseInt(newParticipant.level) : 1,
           grade: "D"
         }),
       });
@@ -388,6 +391,7 @@ export default function ParticipantsPage() {
           name: "",
           email: "",
           phone: "",
+          level: "",
         });
         fetchData();
         setTimeout(() => setMessage(null), 5000);
@@ -610,7 +614,7 @@ export default function ParticipantsPage() {
                   <span className="sm:hidden">CSV</span>
                 </button>
               )}
-              {currentUserRole === 'admin' && (
+              {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                 <button
                   type="button"
                   onClick={() => setShowArchived(!showArchived)}
@@ -621,7 +625,7 @@ export default function ParticipantsPage() {
                   <span>{showArchived ? 'Active List' : `Archived (${participants.filter(p => p.isArchived).length})`}</span>
                 </button>
               )}
-              {(!showArchived && (currentUserRole === 'admin' || currentUserRole === 'volunteer')) && (
+              {(!showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer')) && (
                 <button
                   onClick={() => setShowAddModal(true)}
                   className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-[#A65353] text-white cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
@@ -808,8 +812,8 @@ export default function ParticipantsPage() {
           <div className="text-sm sm:text-base text-gray-600 font-bold">
             Showing {filteredParticipants.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredParticipants.length)} of {filteredParticipants.length} participants
           </div>
-          {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-            const selectableVisible = paginatedParticipants.filter(p => currentUserRole === 'admin' || p.handledBy === currentUserId);
+          {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer') && (() => {
+            const selectableVisible = paginatedParticipants.filter(p => currentUserRole === 'admin' || currentUserRole === 'program_manager' || p.handledBy === currentUserId);
             const allSelected = selectableVisible.length > 0 && selectableVisible.every(p => selectedParticipants.includes(p._id));
             return (
               <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -826,7 +830,7 @@ export default function ParticipantsPage() {
                         Bulk Edit Fields
                       </button>
                     )}
-                    {!showArchived && currentUserRole === 'admin' && (
+                    {!showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                       <button
                         onClick={() => setShowBulkAssignModal(true)}
                         className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
@@ -843,7 +847,7 @@ export default function ParticipantsPage() {
                         Delete ({selectedParticipants.length})
                       </button>
                     )}
-                    {showArchived && currentUserRole === 'admin' && (
+                    {showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                       <>
                         <button
                           onClick={handleBulkUnarchiveParticipants}
@@ -911,8 +915,8 @@ export default function ParticipantsPage() {
                 {/* Top Header Row on mobile / Left group on desktop */}
                 <div className="flex items-center justify-between gap-2 w-full xl:w-auto min-w-0">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 xl:flex-initial">
-                    {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-                      const canSelect = currentUserRole === 'admin' || participant.handledBy === currentUserId;
+                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer') && (() => {
+                      const canSelect = currentUserRole === 'admin' || currentUserRole === 'program_manager' || participant.handledBy === currentUserId;
                       return (
                         <div className="flex items-center flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -1089,7 +1093,7 @@ export default function ParticipantsPage() {
                     >
                       Overview
                     </button>
-                    {(currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === currentUserId)) || participant._id === currentUserId) && (
+                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === currentUserId)) || participant._id === currentUserId) && (
                       <button
                         onClick={() => router.push(`/programs/${programId}/participants/${participant._id}?edit=true`)}
                         className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
@@ -1098,7 +1102,7 @@ export default function ParticipantsPage() {
                       </button>
                     )}
                     {showArchived ? (
-                      currentUserRole === 'admin' && (
+                      (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                         <>
                           <button
                             onClick={() => handleUnarchiveParticipant(participant._id, participant.name)}
@@ -1115,7 +1119,7 @@ export default function ParticipantsPage() {
                         </>
                       )
                     ) : (
-                      (participant._id !== currentUserId && (currentUserRole === 'admin' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === 'unassigned' || participant.handledBy === currentUserId)))) && (
+                      (participant._id !== currentUserId && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === 'unassigned' || participant.handledBy === currentUserId)))) && (
                         <button
                           onClick={() => handleDeleteParticipant(participant._id, participant.name, false)}
                           className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
@@ -1499,6 +1503,23 @@ export default function ParticipantsPage() {
                       placeholder="10-digit mobile number"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Level <span className="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <select
+                      value={newParticipant.level}
+                      onChange={(e) => setNewParticipant({ ...newParticipant, level: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Default (Level 1)</option>
+                      <option value="1">Level 1</option>
+                      <option value="2">Level 2</option>
+                      <option value="3">Level 3</option>
+                      <option value="4">Level 4</option>
+                    </select>
                   </div>
                 </div>
 

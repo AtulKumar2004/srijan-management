@@ -137,7 +137,7 @@ function NotificationsContent() {
       const role = meData?.user?.role || "";
       setCurrentRole(role);
 
-      if (!["admin", "volunteer"].includes(role)) {
+      if (!["admin", "program_manager", "volunteer"].includes(role)) {
         router.push("/dashboard");
         return;
       }
@@ -303,7 +303,7 @@ function NotificationsContent() {
         <div className="bg-white rounded-xl shadow-md p-5 sm:p-6 mb-6 border border-orange-100">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Notifications</h1>
           <p className="text-sm text-gray-600 mt-1">
-            {currentRole === "admin"
+            {(currentRole === "admin" || currentRole === "program_manager")
               ? "Review promotion and volunteer-add requests for your programs."
               : "Track requests you have sent for promotions and volunteer additions."}
           </p>
@@ -418,7 +418,7 @@ function NotificationsContent() {
                         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
                           <p><strong>Participant Email:</strong> {roleRequest.participant?.email || "N/A"}</p>
                           <p><strong>Participant Phone:</strong> {roleRequest.participant?.phone || "N/A"}</p>
-                          {currentRole !== "admin" && (
+                          {currentRole !== "admin" && currentRole !== "program_manager" && (
                             <p><strong>Requested By:</strong> {roleRequest.requestedBy?.name || "N/A"}</p>
                           )}
                           <p><strong>Raised At:</strong> {new Date(request.createdAt).toLocaleString()}</p>
@@ -446,7 +446,7 @@ function NotificationsContent() {
                         </div>
                       )}
 
-                      {currentRole === "admin" && request.requestedBy && (
+                      {(currentRole === "admin" || currentRole === "program_manager") && request.requestedBy && (
                         <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50/40 p-4">
                           <h3 className="text-sm font-semibold text-gray-800 mb-3">Requester Snapshot</h3>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
@@ -459,7 +459,7 @@ function NotificationsContent() {
                         </div>
                       )}
 
-                      {currentRole === "admin" && isRoleChange && roleRequest?.participant && (
+                      {(currentRole === "admin" || currentRole === "program_manager") && isRoleChange && roleRequest?.participant && (
                         <div className="mt-4 rounded-lg border border-orange-100 bg-orange-50/40 p-4">
                           <h3 className="text-sm font-semibold text-gray-800 mb-3">Full Participant Details</h3>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
@@ -482,7 +482,7 @@ function NotificationsContent() {
                         </div>
                       )}
 
-                      {currentRole === "admin" && !isRoleChange && volunteerRequest && (
+                      {(currentRole === "admin" || currentRole === "program_manager") && !isRoleChange && volunteerRequest && (
                         <div className="mt-4 rounded-lg border border-orange-100 bg-orange-50/40 p-4">
                           <h3 className="text-sm font-semibold text-gray-800 mb-3">Volunteer Candidate Details</h3>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-700">
@@ -501,21 +501,21 @@ function NotificationsContent() {
                         </div>
                       )}
 
-                      {currentRole === "admin" && request.status === "pending" && (
+                      {(currentRole === "admin" || currentRole === "program_manager") && (
                         <div className="mt-5 flex gap-3">
                           <button
                             onClick={() => handleAction(request._id, request.requestType, "approve")}
-                            disabled={processingId === request._id}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 cursor-pointer"
+                            disabled={processingId === request._id || request.status !== "pending"}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                           >
-                            {processingId === request._id ? "Processing..." : "Approve"}
+                            {processingId === request._id ? "Processing..." : request.status === "approved" ? "Approved" : "Approve"}
                           </button>
                           <button
                             onClick={() => handleAction(request._id, request.requestType, "reject")}
-                            disabled={processingId === request._id}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 cursor-pointer"
+                            disabled={processingId === request._id || request.status !== "pending"}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                           >
-                            {processingId === request._id ? "Processing..." : "Reject"}
+                            {processingId === request._id ? "Processing..." : request.status === "rejected" ? "Rejected" : "Reject"}
                           </button>
                         </div>
                       )}

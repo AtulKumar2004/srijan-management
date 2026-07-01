@@ -21,8 +21,8 @@ export async function PATCH(
     const actorId = decoded.userId;
     const actorRole = decoded.role;
 
-    if (actorRole !== "admin") {
-      return NextResponse.json({ error: "Only admins can review requests" }, { status: 403 });
+    if (actorRole !== "admin" && actorRole !== "program_manager") {
+      return NextResponse.json({ error: "Only admins and program managers can review requests" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -41,8 +41,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Request already reviewed" }, { status: 400 });
     }
 
-    if (String(request.programAdmin) !== String(actorId)) {
-      return NextResponse.json({ error: "You are not authorized to review this request" }, { status: 403 });
+    if (actorRole === "admin") {
+      if (String(request.programAdmin) !== String(actorId)) {
+        return NextResponse.json({ error: "You are not authorized to review this request" }, { status: 403 });
+      }
+    } else if (actorRole === "program_manager") {
+      const pmUser = await User.findById(actorId).select("programs");
+      if (!pmUser?.programs?.includes(String(request.program))) {
+        return NextResponse.json({ error: "You are not authorized to review this request for this program" }, { status: 403 });
+      }
     }
 
     if (action === "approve") {

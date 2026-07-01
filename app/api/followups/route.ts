@@ -15,9 +15,9 @@ export async function GET(req: NextRequest) {
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     
-    // Only admins can access this section
-    if (decoded.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden - Admin Only" }, { status: 403 });
+    // Only admins or program managers can access this section
+    if (decoded.role !== "admin" && decoded.role !== "program_manager") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -125,8 +125,8 @@ export async function POST(req: NextRequest) {
     }
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    if (decoded.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden - Admin Only" }, { status: 403 });
+    if (decoded.role !== "admin" && decoded.role !== "program_manager") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
         user: userId,
         status: status || "Not Called",
         remarks: remarks || "",
+        createdBy: decoded.userId,
         calledBy: decoded.userId,
         calledAt: new Date()
       });

@@ -6,6 +6,7 @@ import RoleChangeRequest from "@/models/RoleChangeRequest";
 import MentorshipChangeRequest from "@/models/MentorshipChangeRequest";
 import { sendRoleChangeRequestEmail } from "@/lib/sendRoleChangeRequestEmail";
 import { sendMentorshipChangeRequestEmail } from "@/lib/sendMentorshipChangeRequestEmail";
+import { sendRoleChangeConfirmationEmail } from "@/lib/sendRoleChangeConfirmationEmail";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -23,6 +24,12 @@ function canEdit(actorRole: string, targetRole: string, actorId: string, targetI
 
   // Admin can edit anyone
   if (actorRole === "admin") return true;
+
+  // Program manager can edit non-admin / non-program-manager
+  if (actorRole === "program_manager") {
+    if (targetRole === "admin" || targetRole === "program_manager") return false;
+    return true;
+  }
 
   // Volunteer editing someone ELSE
   if (actorRole === "volunteer") {
@@ -66,7 +73,14 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     const targetRole = targetUser.role;
 
     // Permission check
-    const allowed = canEdit(actorRole, targetRole, actorId, targetUserId, targetUser.handledBy);
+    let allowed = canEdit(actorRole, targetRole, actorId, targetUserId, targetUser.handledBy);
+    if (allowed && actorRole === "program_manager" && String(actorId) !== String(targetUserId)) {
+      const actorUser = await User.findById(actorId).select("programs");
+      const actorPrograms = (actorUser?.programs || []).map(String);
+      const targetPrograms = (targetUser.programs || []).map(String);
+      const hasCommon = targetPrograms.some((p: string) => actorPrograms.includes(p));
+      if (!hasCommon && targetPrograms.length > 0) allowed = false;
+    }
     if (!allowed) {
       return NextResponse.json({ error: "Not allowed to edit this user" }, { status: 403 });
     }
@@ -79,13 +93,14 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     const editableFields = [
       "name", "phone", "email", "address", "gender",
       "dateOfBirth", "profession", "homeTown",
-      "connectedToTemple", "numberOfRounds", "level", 
+      "connectedToTemple", "numberOfRounds", "level",
       "grade", "howDidYouHearAboutUs", "isActive",
       "maritalStatus", "registeredBy", "handledBy",
       "participantsUnder", "isArchived"
     ];
 
     const initialRole = targetUser.role;
+    const initialLevel = Number(targetUser.level || 1);
 
     // Role change validation
     if (body.role && body.role !== initialRole) {
@@ -101,11 +116,57 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
         }, { status: 403 });
       }
 
-      // Admin can change anyone's role to anything
-      if (actorRole === "admin") {
+      if (body.role === "program_manager" || initialRole === "program_manager") {
+        if (actorRole !== "admin") {
+          return NextResponse.json({
+            error: "Only admins can assign or remove the Program Manager role"
+          }, { status: 403 });
+        }
+      }
+
+      // Admin or Program Manager can change user roles directly
+      if (actorRole === "admin" || actorRole === "program_manager") {
+        if (actorRole === "program_manager" && (body.role === "admin" || body.role === "program_manager")) {
+          return NextResponse.json({
+            error: "Program Managers cannot assign Admin or Program Manager role"
+          }, { status: 403 });
+        }
+
+        if (body.role === "program_manager") {
+          const finalProgram = body.program || body.programId || (targetUser.programs && targetUser.programs[0]);
+          const finalLevel = (body.level !== undefined && body.level !== "" && body.level !== null) ? body.level : (targetUser.level !== undefined && targetUser.level !== null ? targetUser.level : 1);
+          const finalGrade = (body.grade !== undefined && body.grade !== "" && body.grade !== null) ? body.grade : (targetUser.grade || "A");
+          if (!finalProgram) {
+            return NextResponse.json({
+              error: "Program is required when assigning Program Manager role"
+            }, { status: 400 });
+          }
+          if (body.program || body.programId) {
+            targetUser.programs = [String(body.program || body.programId)];
+          } else if (finalProgram) {
+            targetUser.programs = [String(finalProgram)];
+          }
+          targetUser.level = Number(finalLevel);
+          targetUser.grade = String(finalGrade);
+
+          // Rule: Automatically update Mentoring and Mentor to N/A
+          targetUser.participantsUnder = 0;
+          targetUser.handledBy = "unassigned";
+          await User.updateMany({ handledBy: String(targetUserId) }, { $set: { handledBy: "unassigned" } });
+          delete body.participantsUnder;
+          delete body.handledBy;
+          delete body.level;
+          delete body.grade;
+        } else if (initialRole === "program_manager" && body.role && body.role !== "program_manager") {
+          // Rule: When converted back to Guest, Volunteer, or Participant, again set Mentoring: N/A and Mentor: N/A
+          targetUser.participantsUnder = 0;
+          targetUser.handledBy = "unassigned";
+          delete body.participantsUnder;
+          delete body.handledBy;
+        }
         targetUser.role = body.role;
 
-        // When admin edits guest's role to volunteer or participant, enroll in selected program
+        // When admin/pm edits guest's role to volunteer or participant, enroll in selected program
         if (initialRole === "guest" && (body.role === "volunteer" || body.role === "participant")) {
           if (body.programId) {
             const existingPrograms = targetUser.programs || [];
@@ -119,22 +180,22 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
             }
           }
         }
-      } 
-      // Volunteer can change mentee/unassigned user roles (except to admin)
+      }
+      // Volunteer can change mentee/unassigned user roles (must be approved by admin or program manager)
       else if (actorRole === "volunteer") {
-        if (body.role === "admin") {
+        if (body.role === "admin" || body.role === "program_manager") {
           return NextResponse.json({
-            error: "Volunteers cannot assign admin role"
+            error: "You cannot assign admin or program manager role"
           }, { status: 403 });
         }
 
-        // Rule 2: A volunteer can change the role of his mentees but it must be approved by the admin.
+        // Rule 2: A volunteer can change the role of his mentees but it must be approved by the admin or PM.
         if (body.role && body.role !== targetRole) {
           if (body.role === "volunteer") {
             const finalLevel = body.level !== undefined ? body.level : targetUser.level;
             const finalGrade = body.grade !== undefined ? body.grade : targetUser.grade;
             if (finalLevel === undefined || finalLevel === null || String(finalLevel).trim() === "" ||
-                finalGrade === undefined || finalGrade === null || String(finalGrade).trim() === "") {
+              finalGrade === undefined || finalGrade === null || String(finalGrade).trim() === "") {
               return NextResponse.json({
                 error: "Level and Grade are required when assigning Volunteer role"
               }, { status: 400 });
@@ -183,7 +244,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
           roleApprovalRequestId = String(request._id);
 
           const volunteer = await User.findById(actorId).select("name");
-          const emailResult = await sendRoleChangeRequestEmail({
+          sendRoleChangeRequestEmail({
             adminEmail: program.createdBy.email,
             adminName: program.createdBy.name,
             participantName: targetUser.name,
@@ -194,16 +255,32 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
             requestId: roleApprovalRequestId,
             currentRole: targetRole,
             requestedRole: body.role,
-          });
+          }).catch(console.error);
 
-          roleApprovalEmailSent = Boolean(emailResult.ok);
+          const pms = await User.find({ role: "program_manager", programs: programId }).select("name email");
+          for (const pm of pms) {
+            if (pm.email) {
+              sendRoleChangeRequestEmail({
+                adminEmail: pm.email,
+                adminName: pm.name,
+                participantName: targetUser.name,
+                participantEmail: targetUser.email,
+                participantPhone: targetUser.phone,
+                volunteerName: volunteer?.name || "Volunteer",
+                programName: program.name,
+                requestId: roleApprovalRequestId,
+                currentRole: targetRole,
+                requestedRole: body.role,
+              }).catch(console.error);
+            }
+          }
 
-          // Keep current role unchanged until admin approval.
+          // Keep current role unchanged until approval.
           delete body.role;
         }
       } else {
-        return NextResponse.json({ 
-          error: "You don't have permission to change roles" 
+        return NextResponse.json({
+          error: "You don't have permission to change roles"
         }, { status: 403 });
       }
     }
@@ -220,63 +297,61 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     }
 
     if (actorRole === "volunteer" && !targetUser.handledBy && body.handledBy !== undefined && String(body.handledBy).trim() !== "") {
-        const programId = body.programId || targetUser.programs?.[0];
+      const programId = body.programId || targetUser.programs?.[0];
 
-        if (!programId) {
-          return NextResponse.json({
-            error: "Participant is not mapped to a program. Cannot request mentor assignment."
-          }, { status: 400 });
-        }
-
-        const program: any = await Program.findById(programId).populate("createdBy", "_id name email");
-        if (!program || !program.createdBy) {
-          return NextResponse.json({
-            error: "Program admin not found for mentor assignment approval request"
-          }, { status: 404 });
-        }
-
-        const existingPending = await MentorshipChangeRequest.findOne({
-          participant: targetUserId,
-          requestedBy: actorId,
-          program: programId,
-          status: "pending",
-        });
-
-        if (existingPending) {
-          return NextResponse.json({
-            error: "A pending mentor assignment request already exists for this participant.",
-            approvalRequired: true,
-            requestId: existingPending._id,
-          }, { status: 409 });
-        }
-
-        const mRequest = await MentorshipChangeRequest.create({
-          participant: targetUserId,
-          requestedHandledBy: body.handledBy,
-          requestedBy: actorId,
-          program: programId,
-          programAdmin: program.createdBy._id,
-          status: "pending",
-        });
-
-        mentorshipApprovalRequestId = String(mRequest._id);
-
-        const volunteer = await User.findById(actorId).select("name");
-        const emailResult = await sendMentorshipChangeRequestEmail({
-          adminEmail: program.createdBy.email,
-          adminName: program.createdBy.name,
-          participantName: targetUser.name,
-          participantEmail: targetUser.email,
-          participantPhone: targetUser.phone,
-          volunteerName: volunteer?.name || "Volunteer",
-          programName: program.name,
-          requestId: mentorshipApprovalRequestId,
-        });
-
-        mentorshipApprovalEmailSent = Boolean(emailResult.ok);
-
-        delete body.handledBy;
+      if (!programId) {
+        return NextResponse.json({
+          error: "Participant is not mapped to a program. Cannot request mentor assignment."
+        }, { status: 400 });
       }
+
+      const program: any = await Program.findById(programId).populate("createdBy", "_id name email");
+      if (!program || !program.createdBy) {
+        return NextResponse.json({
+          error: "Program admin not found for mentor assignment approval request"
+        }, { status: 404 });
+      }
+
+      const existingPending = await MentorshipChangeRequest.findOne({
+        participant: targetUserId,
+        requestedBy: actorId,
+        program: programId,
+        status: "pending",
+      });
+
+      if (existingPending) {
+        return NextResponse.json({
+          error: "A pending mentor assignment request already exists for this participant.",
+          approvalRequired: true,
+          requestId: existingPending._id,
+        }, { status: 409 });
+      }
+
+      const mRequest = await MentorshipChangeRequest.create({
+        participant: targetUserId,
+        requestedHandledBy: body.handledBy,
+        requestedBy: actorId,
+        program: programId,
+        programAdmin: program.createdBy._id,
+        status: "pending",
+      });
+
+      mentorshipApprovalRequestId = String(mRequest._id);
+
+      const volunteer = await User.findById(actorId).select("name");
+      sendMentorshipChangeRequestEmail({
+        adminEmail: program.createdBy.email,
+        adminName: program.createdBy.name,
+        participantName: targetUser.name,
+        participantEmail: targetUser.email,
+        participantPhone: targetUser.phone,
+        volunteerName: volunteer?.name || "Volunteer",
+        programName: program.name,
+        requestId: mentorshipApprovalRequestId,
+      }).catch(console.error);
+
+      delete body.handledBy;
+    }
 
     let allowedFields = editableFields;
 
@@ -305,6 +380,23 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
       }
     }
 
+    // Safeguard Level and Grade preservation so they are never wiped out by empty strings or nulls during role transitions
+    if (body.level !== undefined && (body.level === "" || body.level === null)) {
+      delete body.level;
+    }
+    if (body.grade !== undefined && (body.grade === "" || body.grade === null)) {
+      delete body.grade;
+    }
+
+    // Rule: Admin should not be able to edit phone, email and program of a Program Manager
+    if (initialRole === "program_manager") {
+      delete body.phone;
+      delete body.email;
+      delete body.program;
+      delete body.programId;
+      delete body.programs;
+    }
+
     // Apply allowed fields only
     allowedFields.forEach((field) => {
       if (body[field] !== undefined) {
@@ -312,7 +404,18 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
       }
     });
 
+    const finalLevel = Number(targetUser.level || 1);
+    if (!targetUser.levelHistory || targetUser.levelHistory.length === 0) {
+      targetUser.levelHistory = [{ level: initialLevel, joinedAt: targetUser.createdAt || new Date() }];
+    }
+    if (finalLevel !== initialLevel) {
+      targetUser.levelHistory.push({ level: finalLevel, joinedAt: new Date() });
+    }
+
     await targetUser.save();
+    if (initialRole !== targetUser.role) {
+      sendRoleChangeConfirmationEmail(targetUser.email, targetUser.name, initialRole, targetUser.role).catch(console.error);
+    }
 
     const userObj = targetUser.toObject();
     delete userObj.password;

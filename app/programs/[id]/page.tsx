@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Users, UserCheck, UserPlus, Megaphone, ClipboardList, Calendar, ClipboardCheck, BarChart3 } from "lucide-react";
+import { Users, UserCheck, UserPlus, Megaphone, ClipboardList, Calendar, ClipboardCheck, BarChart3, Shield } from "lucide-react";
 
 interface Program {
   _id: string;
@@ -104,6 +104,16 @@ export default function ProgramDetailsPage() {
       hideForParticipant: false
     },
     {
+      title: "Program Managers",
+      icon: Shield,
+      color: "#9333EA",
+      bgColor: "#FAF5FF",
+      route: `/programs/${programId}/program-managers`,
+      description: "Manage program managers for this program",
+      hideForParticipant: true,
+      adminOnly: true
+    },
+    {
       title: "Sessions",
       icon: Calendar,
       color: "#7C3AED",
@@ -120,7 +130,7 @@ export default function ProgramDetailsPage() {
       route: `/programs/${programId}/followups`,
       description: "Manage followups for attendees",
       hideForParticipant: true,
-      adminOnly: true
+      adminOrManager: true
     },
     {
       title: "Attendance Form",
@@ -140,7 +150,7 @@ export default function ProgramDetailsPage() {
       route: `/programs/${programId}/analysis`,
       description: "Monthly graphical analysis",
       hideForParticipant: true,
-      adminOnly: true
+      adminOrManager: true
     }
   ];
 
@@ -148,6 +158,7 @@ export default function ProgramDetailsPage() {
   const visibleCards = cards.filter(card => {
     if ((card as any).anyone) return true;
     if ((card as any).adminOnly && user?.role !== "admin") return false;
+    if ((card as any).adminOrManager && user?.role !== "admin" && user?.role !== "program_manager") return false;
     if (user?.role === "participant" && card.hideForParticipant) return false;
     return true;
   });

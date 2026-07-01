@@ -108,7 +108,7 @@ export default function GraphicalAnalysisPage() {
   };
 
   useEffect(() => {
-    if (currentUserRole === "admin" && programId) {
+    if ((currentUserRole === "admin" || currentUserRole === "program_manager") && programId) {
       fetchAnalysis(selectedYear, selectedMonth);
     }
   }, [currentUserRole, programId]);
@@ -126,7 +126,7 @@ export default function GraphicalAnalysisPage() {
     );
   }
 
-  if (currentUserRole !== "admin") {
+  if (currentUserRole !== "admin" && currentUserRole !== "program_manager") {
     return (
       <div className="min-h-screen flex flex-col bg-gray-50">
         <Header />

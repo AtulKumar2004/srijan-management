@@ -73,25 +73,31 @@ function GuestDetailsContent() {
       }
 
       const authData = await authRes.json();
-      if (!authData.user || !["admin", "volunteer"].includes(authData.user.role)) {
+      if (!authData.user || !["admin", "program_manager", "volunteer"].includes(authData.user.role)) {
         router.push("/dashboard");
         return;
       }
 
       setCurrentUser(authData.user);
-      if (authData.user.role === "admin") {
+      if (authData.user.role === "admin" || authData.user.role === "program_manager") {
         try {
           const progRes = await fetch("/api/programs");
           if (progRes.ok) {
             const progData = await progRes.json();
             const allProg = progData.programs || [];
-            const adminProg = allProg.filter((p: any) =>
-              String(p.createdBy?._id || p.createdBy) === String(authData.user._id)
-            );
-            setPrograms(adminProg.length > 0 ? adminProg : allProg);
+            let allowedProg = allProg;
+            if (authData.user.role === "admin") {
+              const adminProg = allProg.filter((p: any) =>
+                String(p.createdBy?._id || p.createdBy) === String(authData.user._id)
+              );
+              allowedProg = adminProg.length > 0 ? adminProg : allProg;
+            } else if (authData.user.role === "program_manager") {
+              allowedProg = allProg.filter((p: any) => authData.user.programs?.includes(p._id));
+            }
+            setPrograms(allowedProg);
           }
         } catch (e) {
-          console.error("Error fetching admin programs:", e);
+          console.error("Error fetching programs:", e);
         }
       }
       await fetchGuestDetails();
@@ -168,6 +174,12 @@ function GuestDetailsContent() {
       });
 
       if (response.ok) {
+        // If the role was changed away from 'guest', redirect immediately
+        // so the guest profile page never flashes its content for a removed user.
+        if (formData.role && formData.role !== "guest") {
+          router.push("/guests");
+          return;
+        }
         await fetchGuestDetails();
         setEditing(false);
       } else {
@@ -549,22 +561,23 @@ function GuestDetailsContent() {
                       <select
                         value={formData.role}
                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                        disabled={guest.role === "guest" && currentUser?.role !== "admin"}
+                        disabled={guest.role === "guest" && currentUser?.role !== "admin" && currentUser?.role !== "program_manager"}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                       >
-                        {(currentUser?.role === "admin" || currentUser?.role === "volunteer") && <option value="volunteer">Volunteer</option>}
+                        {(currentUser?.role === "admin" || currentUser?.role === "program_manager" || currentUser?.role === "volunteer") && <option value="volunteer">Volunteer</option>}
                         <option value="participant">Participant</option>
                         <option value="guest">Guest</option>
-                        <option value="admin">Admin</option>
+                        {currentUser?.role === "admin" && <option value="program_manager">Program Manager</option>}
+                        {currentUser?.role === "admin" && <option value="admin">Admin</option>}
                       </select>
-                      {guest.role === "guest" && currentUser?.role !== "admin" && (
-                        <p className="text-xs text-red-500 mt-1">Only admins can change the role of newly registered guests.</p>
+                      {guest.role === "guest" && currentUser?.role !== "admin" && currentUser?.role !== "program_manager" && (
+                        <p className="text-xs text-red-500 mt-1">Only admins or program managers can change the role of newly registered guests.</p>
                       )}
-                      {currentUser?.role === "admin" && (formData.role === "volunteer" || formData.role === "participant") && (
+                      {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && (formData.role === "volunteer" || formData.role === "participant" || formData.role === "program_manager") && (
                         <div className="mt-3 bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-3">
                           <div>
-                            <label className="block text-xs font-bold text-blue-900 mb-1.5">
-                              Enroll in Program (for {formData.role}) *
+                            <label className="block text-xs font-bold text-blue-900 mb-1.5 capitalize">
+                              Enroll in Program (for {formData.role === "program_manager" ? "Program Manager" : formData.role}) *
                             </label>
                             <select
                               value={formData.programId || ""}

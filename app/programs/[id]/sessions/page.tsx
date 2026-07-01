@@ -225,7 +225,7 @@ export default function SessionsPage() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
-              {currentUserRole === 'admin' && (
+              {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                 <button
                   onClick={() => setIsCreating(true)}
                   className="px-4 py-2 bg-[#A65353] hover:bg-[#8B4545] text-white rounded-lg cursor-pointer transition-colors text-sm sm:text-base font-semibold shadow-sm"
@@ -382,7 +382,7 @@ export default function SessionsPage() {
                             View Details
                           </button>
 
-                          {currentUserRole === 'admin' && (
+                          {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                             <>
                               <button
                                 onClick={() => openEditModal(session)}

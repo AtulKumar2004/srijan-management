@@ -17,7 +17,7 @@ export async function GET(
     const { id } = await params;
 
     const program = await Program.findById(id).populate('createdBy', 'name email');
-    
+
     if (!program) {
       return NextResponse.json(
         { error: "Program not found" },
@@ -44,7 +44,7 @@ export async function DELETE(
 
     // Verify admin access
     const token = req.headers.get("cookie")?.split("token=")[1]?.split(";")[0];
-    
+
     if (!token) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -53,7 +53,7 @@ export async function DELETE(
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
-    
+
     if (decoded.role !== "admin") {
       return NextResponse.json(
         { error: "Admin access required" },
@@ -138,14 +138,22 @@ export async function PUT(
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
 
-    if (decoded.role !== "admin") {
+    const { id } = await params;
+    let isProgramManagerForProgram = false;
+    if (decoded.role === "program_manager") {
+      const pmUser = await User.findById(decoded.userId).select("programs");
+      if (pmUser?.programs && pmUser.programs.map(String).includes(String(id))) {
+        isProgramManagerForProgram = true;
+      }
+    }
+
+    if (decoded.role !== "admin" && !isProgramManagerForProgram) {
       return NextResponse.json(
-        { error: "Only admins can update programs" },
+        { error: "Only admins or assigned program managers can update programs" },
         { status: 403 }
       );
     }
 
-    const { id } = await params;
     const program = await Program.findById(id);
 
     if (!program) {
@@ -155,8 +163,8 @@ export async function PUT(
       );
     }
 
-    // Check if the current user is the creator of this program
-    if (program.createdBy?.toString() !== decoded.userId) {
+    // Check if the current user is the creator of this program or assigned program manager
+    if (decoded.role === "admin" && program.createdBy?.toString() !== decoded.userId) {
       return NextResponse.json(
         { error: "You can only edit programs you created" },
         { status: 403 }

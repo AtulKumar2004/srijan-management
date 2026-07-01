@@ -3,12 +3,14 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import Outreach from "@/models/Outreach";
 import jwt from "jsonwebtoken";
+import { sendRoleChangeConfirmationEmail } from "@/lib/sendRoleChangeConfirmationEmail";
 
 // -------------------------------------------
 // ROLE DEFINITIONS
 // -------------------------------------------
 export type Role =
   | "admin"
+  | "program_manager"
   | "volunteer"
   | "participant"
   | "guest"
@@ -16,6 +18,7 @@ export type Role =
 
 const ROLE_RANK: Record<Role, number> = {
   admin: 4,
+  program_manager: 3.5,
   volunteer: 3,
   participant: 2,
   guest: 1,
@@ -74,6 +77,7 @@ export async function POST(req: NextRequest) {
     // Validate newRole
     const allowedRoles: Role[] = [
       "admin",
+      "program_manager",
       "volunteer",
       "participant",
       "guest",
@@ -105,6 +109,14 @@ export async function POST(req: NextRequest) {
       }
 
       // Apply update
+      if (newRole === "program_manager" || targetRole === "program_manager") {
+        user.participantsUnder = 0;
+        user.handledBy = "unassigned";
+        if (newRole === "program_manager") {
+          await User.updateMany({ handledBy: String(user._id) }, { $set: { handledBy: "unassigned" } });
+        }
+      }
+
       user.role = newRole;
       if (!user.handledBy) user.handledBy = "unassigned";
       if (!user.registeredBy) user.registeredBy = actorId;
@@ -126,6 +138,9 @@ export async function POST(req: NextRequest) {
       }
 
       await user.save();
+      if (targetRole !== newRole) {
+        await sendRoleChangeConfirmationEmail(user.email, user.name, targetRole, newRole);
+      }
 
       const u = user.toObject();
       delete u.password;

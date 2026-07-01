@@ -34,7 +34,7 @@ export async function middleware(req: NextRequest) {
         // Redirect based on role or archive status
         if (decoded.isArchived || decoded.role === 'guest') {
           return NextResponse.redirect(new URL("/profile", req.url));
-        } else if (decoded.role === 'admin' || decoded.role === 'volunteer' || decoded.role === 'participant') {
+        } else if (['admin', 'program_manager', 'volunteer', 'participant'].includes(decoded.role)) {
           return NextResponse.redirect(new URL("/dashboard", req.url));
         } else {
           return NextResponse.redirect(new URL("/", req.url));
@@ -78,9 +78,9 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/profile", req.url));
     }
 
-    // Restrict dashboard to only admins, volunteers, and participants
+    // Restrict dashboard to only admins, program managers, volunteers, and participants
     if (pathname.startsWith("/dashboard")) {
-      if (!["admin", "volunteer", "participant"].includes(decoded.role)) {
+      if (!["admin", "program_manager", "volunteer", "participant"].includes(decoded.role)) {
         return NextResponse.redirect(new URL("/", req.url));
       }
     }
@@ -90,13 +90,13 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    // Restrict outreach pages to only admins and volunteers
-    if (pathname.startsWith("/outreach") && !["admin", "volunteer"].includes(decoded.role)) {
+    // Restrict outreach pages to only admins, program managers, and volunteers
+    if (pathname.startsWith("/outreach") && !["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    // Restrict notifications to only admins and volunteers
-    if (pathname.startsWith("/notifications") && !["admin", "volunteer"].includes(decoded.role)) {
+    // Restrict notifications to only admins, program managers, and volunteers
+    if (pathname.startsWith("/notifications") && !["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 

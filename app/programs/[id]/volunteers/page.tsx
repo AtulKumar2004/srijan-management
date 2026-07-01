@@ -650,7 +650,7 @@ export default function VolunteersPage() {
                   <span className="sm:hidden">CSV</span>
                 </button>
               )}
-              {currentUserRole === 'admin' && (
+              {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                 <button
                   type="button"
                   onClick={() => setShowArchived(!showArchived)}
@@ -661,7 +661,7 @@ export default function VolunteersPage() {
                   <span>{showArchived ? 'Active List' : `Archived (${volunteers.filter(v => v.isArchived).length})`}</span>
                 </button>
               )}
-              {(!showArchived && (currentUserRole === 'admin' || currentUserRole === 'volunteer')) && (
+              {(!showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer')) && (
                 <button
                   onClick={() => {
                     console.log("Add Volunteer clicked");
@@ -879,8 +879,8 @@ export default function VolunteersPage() {
           <div className="text-sm sm:text-base text-gray-600 font-bold">
             Showing {filteredVolunteers.length === 0 ? 0 : (currentPage - 1) * 20 + 1} - {Math.min(currentPage * 20, filteredVolunteers.length)} of {filteredVolunteers.length} volunteers
           </div>
-          {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-            const selectableVisible = paginatedVolunteers.filter(v => currentUserRole === 'admin' || v.handledBy === currentUserId || v._id === currentUserId);
+          {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer') && (() => {
+            const selectableVisible = paginatedVolunteers.filter(v => currentUserRole === 'admin' || currentUserRole === 'program_manager' || v.handledBy === currentUserId || v._id === currentUserId);
             const allSelected = selectableVisible.length > 0 && selectableVisible.every(v => selectedVolunteers.includes(v._id));
             return (
               <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -897,7 +897,7 @@ export default function VolunteersPage() {
                         Bulk Edit Fields
                       </button>
                     )}
-                    {!showArchived && currentUserRole === 'admin' && (
+                    {!showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                       <button
                         onClick={() => setShowBulkAssignModal(true)}
                         className="px-3 py-1.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-sm"
@@ -914,7 +914,7 @@ export default function VolunteersPage() {
                         Delete ({selectedVolunteers.length})
                       </button>
                     )}
-                    {showArchived && currentUserRole === 'admin' && (
+                    {showArchived && (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                       <>
                         <button
                           onClick={handleBulkUnarchiveVolunteers}
@@ -982,8 +982,8 @@ export default function VolunteersPage() {
                 {/* Top Header Row on mobile / Left group on desktop */}
                 <div className="flex items-center justify-between gap-2 w-full xl:w-auto min-w-0">
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 xl:flex-initial">
-                    {(currentUserRole === 'admin' || currentUserRole === 'volunteer') && (() => {
-                      const canSelect = currentUserRole === 'admin' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId;
+                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || currentUserRole === 'volunteer') && (() => {
+                      const canSelect = currentUserRole === 'admin' || currentUserRole === 'program_manager' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId;
                       return (
                         <div className="flex items-center flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <input
@@ -1168,7 +1168,7 @@ export default function VolunteersPage() {
                     >
                       Overview
                     </button>
-                    {(currentUserRole === 'admin' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId) && (
+                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || volunteer.handledBy === currentUserId || volunteer._id === currentUserId) && (
                       <button
                         onClick={() => router.push(`/programs/${programId}/volunteers/${volunteer._id}?edit=true`)}
                         className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
@@ -1177,7 +1177,7 @@ export default function VolunteersPage() {
                       </button>
                     )}
                     {showArchived ? (
-                      currentUserRole === 'admin' && (
+                      (currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                         <>
                           <button
                             onClick={() => handleUnarchiveVolunteer(volunteer._id, volunteer.name)}
@@ -1194,7 +1194,7 @@ export default function VolunteersPage() {
                         </>
                       )
                     ) : (
-                      (volunteer._id !== currentUserId && (currentUserRole === 'admin' || volunteer.handledBy === currentUserId)) && (
+                      (volunteer._id !== currentUserId && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || volunteer.handledBy === currentUserId)) && (
                         <button
                           onClick={() => handleDeleteVolunteer(volunteer._id, volunteer.name, false)}
                           className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"

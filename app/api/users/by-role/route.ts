@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import { TokenPayload } from "@/types/TokenPayload";
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,6 +21,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const token = req.cookies.get("token")?.value || req.headers.get("cookie")?.split("token=")[1]?.split(";")[0];
+    let decoded: TokenPayload | null = null;
+    if (token) {
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+      } catch (e) {
+        // ignore invalid token
+      }
+    }
+
     // Build query
     const query: any = {};
     if (role && role !== "all") {
@@ -29,10 +41,22 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    // If programId is provided, filter users enrolled in that program
-    if (programId) {
+    // If program_manager is querying without a specific programId, or with one, ensure they only access their enrolled programs
+    if (decoded?.role === "program_manager") {
+      const callerUser = await User.findById(decoded.userId).select('programs');
+      const assignedPrograms = callerUser?.programs || [];
+      if (programId) {
+        if (!assignedPrograms.map(String).includes(String(programId))) {
+          return NextResponse.json({ users: [], count: 0 }, { status: 200 });
+        }
+        query.programs = programId;
+      } else {
+        query.programs = { $in: assignedPrograms };
+      }
+    } else if (programId) {
       query.programs = programId;
     }
+
     if (includeArchived !== "true") {
       query.isArchived = { $ne: true };
     }

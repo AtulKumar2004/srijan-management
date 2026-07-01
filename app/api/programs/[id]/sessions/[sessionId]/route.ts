@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/db";
 import Session from "@/models/Session";
 import User from "@/models/User";
 import Attendance from "@/models/Attendance";
+import jwt from "jsonwebtoken";
+import { TokenPayload } from "@/types/TokenPayload";
 
 // GET /api/programs/[id]/sessions/[sessionId] - Get session details with attendance
 export async function GET(
@@ -77,7 +79,26 @@ export async function PUT(
 ) {
   try {
     await connectDB();
-    const { sessionId } = await params;
+
+    const token = req.headers.get("cookie")?.split("token=")[1]?.split(";")[0];
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    const { id, sessionId } = await params;
+    
+    let isProgramManagerForProgram = false;
+    if (decoded.role === "program_manager") {
+      const pmUser = await User.findById(decoded.userId).select("programs");
+      if (pmUser?.programs && pmUser.programs.map(String).includes(String(id))) {
+        isProgramManagerForProgram = true;
+      }
+    }
+
+    if (decoded.role !== "admin" && !isProgramManagerForProgram) {
+      return NextResponse.json({ error: "Only admins or assigned program managers can edit sessions" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { sessionTopic, sessionDate, speakerName, description, level } = body;
 
@@ -113,7 +134,25 @@ export async function DELETE(
 ) {
   try {
     await connectDB();
-    const { sessionId } = await params;
+
+    const token = req.headers.get("cookie")?.split("token=")[1]?.split(";")[0];
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as TokenPayload;
+    const { id, sessionId } = await params;
+
+    let isProgramManagerForProgram = false;
+    if (decoded.role === "program_manager") {
+      const pmUser = await User.findById(decoded.userId).select("programs");
+      if (pmUser?.programs && pmUser.programs.map(String).includes(String(id))) {
+        isProgramManagerForProgram = true;
+      }
+    }
+
+    if (decoded.role !== "admin" && !isProgramManagerForProgram) {
+      return NextResponse.json({ error: "Only admins or assigned program managers can delete sessions" }, { status: 403 });
+    }
 
     const deleted = await Session.findByIdAndUpdate(sessionId, { isDeleted: true });
     if (!deleted) {

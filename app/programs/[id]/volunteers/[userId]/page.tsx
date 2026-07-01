@@ -28,8 +28,9 @@ interface UserData {
     maritalStatus?: string;
     participantsUnder?: number;
     handledBy?: string;
-    registeredBy?: string;
     isActive?: boolean;
+    programId?: string;
+    programs?: string[];
     createdAt: string;
     updatedAt: string;
 }
@@ -57,11 +58,11 @@ function VolunteerDetailContent() {
     const [activeTab, setActiveTab] = useState<'profile' | 'followup' | 'remark' | 'attendance'>('profile');
 
     const isSelf = Boolean(currentUserId && userId && String(currentUserId) === String(userId));
-    const canEditAdministrative = currentUserRole === 'admin' || (!isSelf && Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId)));
-    const canEditHandledBy = !isSelf && currentUserRole === 'admin';
+    const canEditAdministrative = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (!isSelf && Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId)));
+    const canEditHandledBy = !isSelf && (currentUserRole === 'admin' || currentUserRole === 'program_manager');
 
-    const canViewFollowupTab = currentUserRole === 'admin' || (currentUserRole === 'volunteer' && isSelf);
-    const canViewRemarkTab = currentUserRole === 'admin' || (!isSelf && currentUserRole === 'volunteer');
+    const canViewFollowupTab = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && isSelf);
+    const canViewRemarkTab = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (!isSelf && currentUserRole === 'volunteer');
 
     useEffect(() => {
         fetchUser();
@@ -70,7 +71,7 @@ function VolunteerDetailContent() {
 
     useEffect(() => {
         if (currentUserRole && currentUserId && user) {
-            const canEdit = currentUserRole === 'admin' || userId === currentUserId || (currentUserRole === 'volunteer' && user.handledBy === currentUserId);
+            const canEdit = currentUserRole === 'admin' || currentUserRole === 'program_manager' || userId === currentUserId || (currentUserRole === 'volunteer' && user.handledBy === currentUserId);
             if (!canEdit) {
                 setIsEditing(false);
             } else {
@@ -101,7 +102,7 @@ function VolunteerDetailContent() {
                 const role = meData.user?.role || '';
                 setCurrentUserId(meData.user?._id || '');
                 setCurrentUserRole(role);
-                
+
                 if (role === 'participant') {
                     router.replace(`/programs/${programId}`);
                     return;
@@ -170,7 +171,7 @@ function VolunteerDetailContent() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({ ...formData, programId: formData.programId || programId }),
             });
 
             const data = await res.json();
@@ -181,7 +182,7 @@ function VolunteerDetailContent() {
                 setIsEditing(false);
                 setTimeout(() => setMessage(null), 4000);
             } else if (res.ok) {
-                if (currentUserRole === 'admin') {
+                if (currentUserRole === 'admin' || currentUserRole === 'program_manager') {
                     // Update assigned participants
                     await Promise.all(
                         programParticipants.map(p => {
@@ -204,7 +205,7 @@ function VolunteerDetailContent() {
                 setIsEditing(false);
                 setTimeout(() => setMessage(null), 3000);
             } else {
-                setMessage({ type: 'error', text: data.message || 'Failed to update user' });
+                setMessage({ type: 'error', text: data.error || data.message || 'Failed to update user' });
             }
         } catch (error) {
             console.error("Error updating user:", error);
@@ -280,8 +281,8 @@ function VolunteerDetailContent() {
                             type="button"
                             onClick={() => setActiveTab('profile')}
                             className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'profile'
-                                    ? 'border-[#A65353] text-[#A65353]'
-                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                                ? 'border-[#A65353] text-[#A65353]'
+                                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                                 }`}
                         >
                             Profile
@@ -291,8 +292,8 @@ function VolunteerDetailContent() {
                                 type="button"
                                 onClick={() => setActiveTab('followup')}
                                 className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'followup'
-                                        ? 'border-[#A65353] text-[#A65353]'
-                                        : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                                    ? 'border-[#A65353] text-[#A65353]'
+                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                                     }`}
                             >
                                 Followup
@@ -303,8 +304,8 @@ function VolunteerDetailContent() {
                                 type="button"
                                 onClick={() => setActiveTab('remark')}
                                 className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'remark'
-                                        ? 'border-[#A65353] text-[#A65353]'
-                                        : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                                    ? 'border-[#A65353] text-[#A65353]'
+                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                                     }`}
                             >
                                 Remark
@@ -314,8 +315,8 @@ function VolunteerDetailContent() {
                             type="button"
                             onClick={() => setActiveTab('attendance')}
                             className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${activeTab === 'attendance'
-                                    ? 'border-[#A65353] text-[#A65353]'
-                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+                                ? 'border-[#A65353] text-[#A65353]'
+                                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
                                 }`}
                         >
                             Attendance
@@ -336,7 +337,7 @@ function VolunteerDetailContent() {
                 )}
 
                 {canViewRemarkTab && activeTab === 'remark' && (
-                    <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
+                    <ProfileRemarkTab userId={userId} programId={programId} canEdit={currentUserRole === 'admin' || currentUserRole === 'program_manager' || Boolean(user?.handledBy && String(user.handledBy) === String(currentUserId))} />
                 )}
 
                 {activeTab === 'attendance' && (
@@ -352,7 +353,7 @@ function VolunteerDetailContent() {
                                     <User size={20} className="sm:w-6 sm:h-6" />
                                     Personal Information
                                 </h2>
-                                {(currentUserRole === 'admin' || userId === currentUserId || (currentUserRole === 'volunteer' && user?.handledBy === currentUserId)) && (
+                                {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || userId === currentUserId || (currentUserRole === 'volunteer' && user?.handledBy === currentUserId)) && (
                                     !isEditing ? (
                                         <button
                                             type="button"
@@ -491,7 +492,7 @@ function VolunteerDetailContent() {
                                     <label className="block text-sm font-bold text-gray-700 mb-2">
                                         Role *
                                     </label>
-                                    {isEditing && canEditAdministrative && !isSelf ? (
+                                    {isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager' || canEditAdministrative) && !isSelf ? (
                                         <select
                                             name="role"
                                             value={formData.role || ''}
@@ -502,7 +503,8 @@ function VolunteerDetailContent() {
                                             <option value="guest">Guest</option>
                                             <option value="participant">Participant</option>
                                             <option value="volunteer">Volunteer</option>
-                                            <option value="admin">Admin</option>
+                                            {currentUserRole === 'admin' && <option value="program_manager">Program Manager</option>}
+                                            {currentUserRole === 'admin' && <option value="admin">Admin</option>}
                                         </select>
                                     ) : (
                                         <p className="text-gray-800 py-2 capitalize">
@@ -754,7 +756,7 @@ function VolunteerDetailContent() {
                                     <label className="block text-sm font-bold text-gray-700 mb-2">
                                         Mentoring
                                     </label>
-                                    {isEditing && currentUserRole === 'admin' ? (
+                                    {isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager') ? (
                                         <input
                                             type="number"
                                             name="participantsUnder"
@@ -771,7 +773,7 @@ function VolunteerDetailContent() {
                         </div>
 
                         {/* Mentored Selection */}
-                        {(!isEditing || currentUserRole !== 'admin') && programParticipants.filter(p => assignedIds.includes(p._id)).length === 0 ? (
+                        {(!isEditing || (currentUserRole !== 'admin' && currentUserRole !== 'program_manager')) && programParticipants.filter(p => assignedIds.includes(p._id)).length === 0 ? (
                             <div className="bg-white rounded-lg shadow-sm px-4 py-3 mb-4 sm:mb-6 border-l-4 border-[#A65353] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                     <User size={18} className="text-[#A65353]" />
@@ -788,14 +790,14 @@ function VolunteerDetailContent() {
                                             Mentored ({assignedIds.length})
                                         </h2>
                                         <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                                            {isEditing && currentUserRole === 'admin' ? 'Check people that should be mentored by this volunteer' : 'List of people currently mentored by this volunteer'}
+                                            {isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager') ? 'Check people that should be mentored by this volunteer' : 'List of people currently mentored by this volunteer'}
                                         </p>
                                     </div>
                                 </div>
 
                                 {programParticipants.length === 0 ? (
                                     <p className="text-gray-500 italic text-sm py-4">No participants found enrolled in this program.</p>
-                                ) : isEditing && currentUserRole === 'admin' ? (
+                                ) : isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager') ? (
                                     (() => {
                                         const selectable = programParticipants.filter(p => {
                                             if (p._id === userId) return false;
