@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
       numberOfRounds,
       connectedToTemple,
       level: level || 1,
+      levelHistory: [{ level: Number(level || 1), joinedAt: joinedAt ? new Date(joinedAt) : new Date() }],
       grade: grade || "D",
       joinedAt,
       maritalStatus,

@@ -39,6 +39,7 @@ export default function Header() {
 
   return (
     <header
+      suppressHydrationWarning
       className={`relative transition-colors duration-300 ${
         isAboutPage
           ? "bg-[#B58251] border-b-0 shadow-none text-white"
@@ -59,7 +60,7 @@ export default function Header() {
               aria-label="Go to dashboard"
             >
               <img src="/SrijanLogo4.png" className="rounded-full w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12" alt="Srijan Youth Festival Logo" />
-              <h1 className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isAboutPage ? "text-white" : "text-amber-700"}`}>SRIJAN</h1>
+              <h1 suppressHydrationWarning className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isAboutPage ? "text-white" : "text-amber-700"}`}>SRIJAN</h1>
             </button>
           </div>
 

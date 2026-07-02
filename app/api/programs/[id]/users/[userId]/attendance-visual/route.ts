@@ -75,38 +75,32 @@ export async function GET(
         // Rule 1: Higher levels than current level should not appear unless attended
         if (sessLevel > studentLevel) return false;
 
-        // Rule 2: Find when the user joined this sessLevel
-        // Level 1 is a special case: they see all Level 1 sessions from the beginning of time.
-        let joinedStartOfDay: Date | null = null;
-        if (sessLevel > 1) {
-          const joinedEntry = levelHistory.find((h) => h.level === sessLevel);
-          // If they never explicitly joined this level (e.g. missing history), 
-          // we fallback to not filtering the start date. But if history exists, we enforce it.
-          if (joinedEntry) {
-            joinedStartOfDay = new Date(joinedEntry.joinedAt);
-            joinedStartOfDay.setHours(0, 0, 0, 0);
-          }
-        }
-
-        // Rule 3: Find when the user left this sessLevel (i.e., joined the next recorded level)
-        let promotedStartOfDay: Date | null = null;
+        // Rule 2: Lower levels than current level should only appear if the session occurred BEFORE the user promoted out of that level
         if (sessLevel < studentLevel) {
           const promotedOutEntry = levelHistory.find((h) => h.level > sessLevel);
           if (promotedOutEntry) {
-            promotedStartOfDay = new Date(promotedOutEntry.joinedAt);
+            const promotedStartOfDay = new Date(promotedOutEntry.joinedAt);
             promotedStartOfDay.setHours(0, 0, 0, 0);
+            if (d >= promotedStartOfDay) {
+              return false;
+            }
           } else {
-            // Fallback for older accounts lacking explicit levelHistory
-            promotedStartOfDay = now;
+            // If there is no explicit history recording when they promoted out of sessLevel,
+            // do not show unattended lower-level sessions on their profile.
+            return false;
           }
         }
 
-        // Apply time window filter
-        if (joinedStartOfDay && d < joinedStartOfDay) {
-          return false;
-        }
-        if (promotedStartOfDay && d >= promotedStartOfDay) {
-          return false;
+        // Rule 3: For current level sessions (sessLevel === studentLevel), if level > 1 and joinedEntry exists, check if session was before joining
+        if (sessLevel === studentLevel && sessLevel > 1) {
+          const joinedEntry = levelHistory.find((h) => h.level === sessLevel);
+          if (joinedEntry) {
+            const joinedStartOfDay = new Date(joinedEntry.joinedAt);
+            joinedStartOfDay.setHours(0, 0, 0, 0);
+            if (d < joinedStartOfDay) {
+              return false;
+            }
+          }
         }
 
         return true;

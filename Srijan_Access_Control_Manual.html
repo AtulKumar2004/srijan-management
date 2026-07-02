@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Srijan Youth Festival Management System - User Manual & Access Control Guide</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1F1E1C;
+      background-color: #FFFFFF;
+      line-height: 1.6;
+      font-size: 11pt;
+    }
+    h1, h2, h3, h4 {
+      font-family: 'Quicksand', sans-serif;
+      color: #5A2A2A;
+      font-weight: 700;
+    }
+    .header {
+      border-bottom: 3px solid #B58251;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .logo-text h1 {
+      font-size: 24pt;
+      color: #A65353;
+      letter-spacing: -0.5px;
+    }
+    .logo-text p {
+      font-size: 10pt;
+      color: #B58251;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .doc-meta {
+      text-align: right;
+      font-size: 9pt;
+      color: #666;
+    }
+    h2 {
+      font-size: 16pt;
+      margin-top: 25px;
+      margin-bottom: 12px;
+      border-left: 4px solid #A65353;
+      padding-left: 10px;
+      background: #FAF8F5;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 13pt;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      color: #8B4545;
+    }
+    p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0 25px 0;
+      font-size: 9.5pt;
+    }
+    th, td {
+      border: 1px solid #EADFCE;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #B58251;
+      color: #FFFFFF;
+      font-family: 'Quicksand', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 8.5pt;
+      letter-spacing: 0.5px;
+    }
+    tr:nth-child(even) {
+      background-color: #FDFBF7;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-admin { background: #FDE8E8; color: #9B1C1C; border: 1px solid #F8B4B4; }
+    .badge-pm { background: #FEF08A; color: #713F12; border: 1px solid #FDE047; }
+    .badge-vol { background: #E1EFFE; color: #1E429F; border: 1px solid #B4C6FC; }
+    .badge-part { background: #DEF7EC; color: #03543F; border: 1px solid #84E1BC; }
+    .badge-guest { background: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; }
+    .check { color: #057A55; font-weight: bold; }
+    .cross { color: #E02424; font-weight: bold; }
+    .note-box {
+      background: #FAF8F5;
+      border: 1px solid #EADFCE;
+      border-left: 4px solid #B58251;
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 15px 0;
+      font-size: 9.5pt;
+    }
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 15px;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    .page-break {
+      page-break-before: always;
+    }
+    .footer {
+      margin-top: 40px;
+      border-top: 1px solid #EADFCE;
+      padding-top: 15px;
+      text-align: center;
+      font-size: 8.5pt;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-text">
+        <h1>SRIJAN</h1>
+        <p>Youth Festival Management System</p>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <strong>Document ID:</strong> SYS-MAN-2026<br>
+      <strong>Date:</strong> July 2026<br>
+      <strong>Status:</strong> Official User Manual
+    </div>
+  </div>
+
+  <p>This document serves as the authoritative <strong>User Manual & Access Control Specification</strong> for the Srijan Youth Festival Management System. It outlines architectural hierarchy, module permissions, page access privileges, and data creation/editing rules for all user roles across the platform.</p>
+
+  <!-- Section 1 -->
+  <h2>1. Role & Hierarchy Architecture</h2>
+  <p>The system enforces a strict 6-tier role ranking model (`ROLE_RANK`) designed to segregate administrative capabilities, program execution, volunteer mentorship, and mentee participation.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Rank</th>
+        <th>Role Identifier</th>
+        <th>User Title</th>
+        <th>Core Responsibilities & Scope</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>4.0</strong></td>
+        <td><span class="badge badge-admin">admin</span></td>
+        <td>Super Administrator</td>
+        <td>Full platform control. Manages system configurations, global guest pools, all programs, outreach tasks, and user promotions across all ranks.</td>
+      </tr>
+      <tr>
+        <td><strong>3.5</strong></td>
+        <td><span class="badge badge-pm">program_manager</span></td>
+        <td>Program Manager</td>
+        <td>Oversees designated festival programs. Manages session schedules, coordinates volunteers, reviews mentee follow-ups, and analyses program metrics.</td>
+      </tr>
+      <tr>
+        <td><strong>3.0</strong></td>
+        <td><span class="badge badge-vol">volunteer</span></td>
+        <td>Volunteer / Mentor</td>
+        <td>Frontline mentor. Records daily session attendance, manages mentee groups, conducts outreach follow-up calls, and submits progress remarks.</td>
+      </tr>
+      <tr>
+        <td><strong>2.0</strong></td>
+        <td><span class="badge badge-part">participant</span></td>
+        <td>Participant / Mentee</td>
+        <td>Registered festival attendee. Views enrolled program sessions, personal profile, and individual attendance records.</td>
+      </tr>
+      <tr>
+        <td><strong>1.0</strong></td>
+        <td><span class="badge badge-guest">guest</span></td>
+        <td>Guest User</td>
+        <td>Newly onboarded registrant awaiting administrative verification. Restricted strictly to profile viewing until verified.</td>
+      </tr>
+      <tr>
+        <td><strong>0.0</strong></td>
+        <td><code>outreach</code></td>
+        <td>Outreach Contact</td>
+        <td>External student/contact pool entry used for follow-up coordination and call logging.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 2 -->
+  <h2>2. Page & Route Access Matrix (Who Can Access What)</h2>
+  <p>Route access is enforced at edge runtime by Next.js Middleware (`middleware.ts`) and validated on the backend API layer. Users attempting to access unauthorized routes are automatically redirected to their allowed landing pages.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Application Section / Route</th>
+        <th>Admin</th>
+        <th>Program Mgr</th>
+        <th>Volunteer</th>
+        <th>Participant</th>
+        <th>Guest / Archived</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Public Pages</strong> (<code>/</code>, <code>/about</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+      </tr>
+      <tr>
+        <td><strong>User Profile</strong> (<code>/profile</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+      </tr>
+      <tr>
+        <td><strong>Main Dashboard</strong> (<code>/dashboard</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="cross">✘ Redirected</span></td>
+      </tr>
+      <tr>
+        <td><strong>Programs & Sessions</strong> (<code>/programs</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Enrolled</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+      </tr>
+      <tr>
+        <td><strong>Outreach & Follow-ups</strong> (<code>/outreach</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Assigned</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+      </tr>
+      <tr>
+        <td><strong>Notifications Center</strong> (<code>/notifications</code>)</td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="check">✔ Yes</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+      </tr>
+      <tr>
+        <td><strong>Guest Management</strong> (<code>/guests</code>)</td>
+        <td><span class="check">✔ Only Admin</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+      </tr>
+      <tr>
+        <td><strong>Admin Panel</strong> (<code>/admin</code>)</td>
+        <td><span class="check">✔ Only Admin</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+        <td><span class="cross">✘ No Access</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note-box">
+    <strong>🔒 Account Archival Policy:</strong> If a user account is marked as <code>isArchived: true</code> or deleted by an Admin or Program Manager, all access permissions are revoked immediately regardless of previous rank. Archived users are restricted exclusively to viewing their static profile page.
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- Section 3 -->
+  <h2>3. Data Editing & Creation Matrix (Who Can Edit What)</h2>
+  <p>The system applies granular permissions on entity creation, modification, deletion, and role transitions to prevent unauthorized privilege escalation.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Action / Entity Modification</th>
+        <th>Admin</th>
+        <th>Program Mgr</th>
+        <th>Volunteer</th>
+        <th>Participant / Guest</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Create New Programs</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Create Program Sessions</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Create / Onboard Volunteers</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="check">✔ Program Scope</span></td>
+        <td><span class="cross">✘ Request Only</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Create / Register Participants</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Log / Update Attendance</strong></td>
+        <td><span class="check">✔ All Sessions</span></td>
+        <td><span class="check">✔ Program Scope</span></td>
+        <td><span class="check">✔ Assigned Mentees</span></td>
+        <td><span class="cross">✘ View Only</span></td>
+      </tr>
+      <tr>
+        <td><strong>Log Follow-up Remarks & Calls</strong></td>
+        <td><span class="check">✔ All Contacts</span></td>
+        <td><span class="check">✔ Program Scope</span></td>
+        <td><span class="check">✔ Assigned Pool</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Verify / Promote Guests</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+      <tr>
+        <td><strong>Archive / Delete User Accounts</strong></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="check">✔ Full Rights</span></td>
+        <td><span class="cross">✘ No</span></td>
+        <td><span class="cross">✘ No</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 4 -->
+  <h2>4. Role Transition & Promotion Safeguards</h2>
+  <p>To preserve organizational security, role promotions managed via <code>/api/roles/change</code> enforce three inviolable authorization rules:</p>
+  <ol>
+    <li><strong>Subordinate Rank Restriction:</strong> An actor cannot modify the role of any user whose current rank is equal to or higher than their own (<code>targetRank &gt;= actorRank</code>). For example, a Program Manager cannot edit another Program Manager or an Admin.</li>
+    <li><strong>Guest Verification Monopoly:</strong> Newly registered users in the <code>guest</code> tier can only be verified and assigned operational roles by an <strong>Admin</strong>.</li>
+    <li><strong>Volunteer Promotion Cap:</strong> Volunteers cannot promote participants to Volunteer or Admin status; such requests must pass through administrative review workflows.</li>
+  </ol>
+
+  <!-- Section 5 -->
+  <h2>5. Key Operational Workflows</h2>
+  <h3>A. Program & Session Setup Workflow</h3>
+  <p>1. <strong>Admin</strong> creates a Program specifying age criteria, description, and associated temple.<br>
+     2. <strong>Program Manager</strong> accesses the program and creates specific time-slotted Sessions.<br>
+     3. Participants and Volunteers enroll or get assigned to the program.</p>
+
+  <h3>B. Daily Attendance & Mentorship Workflow</h3>
+  <p>1. During festival sessions, <strong>Volunteers</strong> open the session attendance roster on their mobile devices.<br>
+     2. Volunteers mark presence (`Present`, `Absent`, `Excused`) for their assigned mentees.<br>
+     3. Attendance instantly reflects on the mentee's profile and updates global analytics on the Program Manager dashboard.</p>
+
+  <div class="footer">
+    Srijan Youth Festival Management System &copy; 2026. Confidential Internal Documentation.
+  </div>
+
+</body>
+</html>
