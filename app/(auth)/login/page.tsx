@@ -201,10 +201,9 @@ function LoginForm() {
           </div>
 
           {/* Footer Quote */}
-          <div className="text-center mt-8 text-cyan-700 italic">
+          <div className="text-center mt-8 text-cyan-700">
             <p className="text-sm text-black font-bold flex items-center justify-center gap-1.5">
-              <Sparkles size={14} className="text-amber-600 flex-shrink-0" />
-              "The soul is neither born, and nor does it die" - Bhagavad Gita
+              "The soul is neither born, nor does it die" - Bhagavad Gita
             </p>
           </div>
         </div>

@@ -389,7 +389,7 @@ export default function SignupPage() {
 
           {/* Footer Quote */}
           <div className="text-center mt-8 text-cyan-700 italic">
-            <p className="text-slate-700 font-bold">🌸 "सर्वधर्मान्परित्यज्य मामेकं शरणं व्रज ।
+            <p className="text-slate-700 font-bold">"सर्वधर्मान्परित्यज्य मामेकं शरणं व्रज ।
 अहं त्वां सर्वपापेभ्यो मोक्षयिष्यामि मा श‍ुच:" - Bg-18.66</p>
           </div>
         </div>

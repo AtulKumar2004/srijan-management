@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import UserManualGuideSection from "@/components/UserManualGuideSection";
-import { Play, ExternalLink } from "lucide-react";
+import { Play, ExternalLink, ArrowLeft } from "lucide-react";
 import { motion, Variants } from "framer-motion";
 
 interface VideoItem {
@@ -249,6 +249,24 @@ export default function AboutPage() {
                 </motion.article>
               ))}
             </div>
+
+            {/* Back to Home Button */}
+            <motion.div
+              className="mt-14 sm:mt-16 flex justify-center"
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              <a
+                href={process.env.NEXT_PUBLIC_APP_URL || "https://www.srijanvraj.com"}
+                className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-[#B58251] via-[#A47140] to-[#8F5D2C] text-white font-bold text-base sm:text-lg shadow-md hover:shadow-xl hover:shadow-[#A47140]/30 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 overflow-hidden border border-amber-200/30"
+              >
+                <span className="absolute inset-0 w-full h-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <ArrowLeft className="w-5 h-5 transition-transform duration-300 group-hover:-translate-x-1" />
+                <span>Back to home</span>
+              </a>
+            </motion.div>
           </div>
         </section>
 
