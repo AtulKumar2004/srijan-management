@@ -259,7 +259,7 @@ export default function AboutPage() {
               transition={{ duration: 0.6, delay: 0.2 }}
             >
               <a
-                href={process.env.NEXT_PUBLIC_APP_URL || "https://www.srijanvraj.com"}
+                href={`${process.env.NEXT_PUBLIC_APP_URL || "https://www.srijanvraj.com"}/dashboard`}
                 className="group relative inline-flex items-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-[#B58251] via-[#A47140] to-[#8F5D2C] text-white font-bold text-base sm:text-lg shadow-md hover:shadow-xl hover:shadow-[#A47140]/30 transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 overflow-hidden border border-amber-200/30"
               >
                 <span className="absolute inset-0 w-full h-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
