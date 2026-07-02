@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import UserManualGuideSection from "@/components/UserManualGuideSection";
 import { Play, ExternalLink } from "lucide-react";
 import { motion, Variants } from "framer-motion";
 
@@ -184,7 +185,10 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Section 4: Video Gallery */}
+        {/* Section 4: User Manual & Access Control Guide */}
+        <UserManualGuideSection />
+
+        {/* Section 5: Video Gallery */}
         <section className="relative py-16 sm:py-24 px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <motion.div
