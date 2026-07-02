@@ -241,6 +241,26 @@ export async function POST(req: NextRequest) {
       requestId: String(request._id),
     });
 
+    const pms = await User.find({ role: "program_manager", programs: primaryProgramId, isArchived: { $ne: true } }).select("name email");
+    for (const pm of pms) {
+      if (pm.email) {
+        sendVolunteerCreationRequestEmail({
+          adminEmail: pm.email,
+          adminName: pm.name,
+          programName: program.name,
+          requesterName: requester.name,
+          requesterEmail: requester.email,
+          requesterPhone: requester.phone,
+          requesterLevel: requester.level,
+          candidateName: name,
+          candidateEmail: email,
+          candidatePhone: phone,
+          candidateLevel: level,
+          requestId: String(request._id),
+        }).catch(console.error);
+      }
+    }
+
     return NextResponse.json(
       {
         message: "Volunteer request sent to program admin for approval",

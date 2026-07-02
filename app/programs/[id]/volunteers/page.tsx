@@ -675,7 +675,7 @@ export default function VolunteersPage() {
                 </button>
               )}
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push('/dashboard')}
                 className="px-3 sm:px-4 py-2 text-gray-600 cursor-pointer hover:text-gray-800 font-medium text-sm sm:text-base"
               >
                 ← Back

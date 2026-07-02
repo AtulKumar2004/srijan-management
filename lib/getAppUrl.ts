@@ -12,15 +12,16 @@
  *   https://srijanyouthfestival.vercel.app
  */
 export function getAppUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+  if (process.env.NEXT_PUBLIC_APP_URL && process.env.NEXT_PUBLIC_APP_URL.trim() !== "") {
+    return process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "");
   }
-  if (process.env.NEXTAUTH_URL) {
-    return process.env.NEXTAUTH_URL.replace(/\/$/, "");
+  if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")) {
+    return process.env.NEXTAUTH_URL.trim().replace(/\/$/, "");
   }
   if (process.env.VERCEL_URL) {
     // VERCEL_URL does not include the scheme
-    return `https://${process.env.VERCEL_URL}`;
+    return `https://${process.env.VERCEL_URL.trim()}`;
   }
-  return "http://localhost:3000";
+  return "https://www.srijanvraj.com";
 }
+

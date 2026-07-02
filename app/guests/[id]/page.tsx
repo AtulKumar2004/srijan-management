@@ -177,7 +177,7 @@ function GuestDetailsContent() {
         const roleChanged = formData.role && formData.role !== "guest";
         
         if (roleChanged) {
-          router.push("/guests");
+          router.replace("/guests");
           return;
         }
 

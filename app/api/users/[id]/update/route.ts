@@ -257,7 +257,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
             requestedRole: body.role,
           }).catch(console.error);
 
-          const pms = await User.find({ role: "program_manager", programs: programId }).select("name email");
+          const pms = await User.find({ role: "program_manager", programs: programId, isArchived: { $ne: true } }).select("name email");
           for (const pm of pms) {
             if (pm.email) {
               sendRoleChangeRequestEmail({
@@ -349,6 +349,22 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
         programName: program.name,
         requestId: mentorshipApprovalRequestId,
       }).catch(console.error);
+
+      const pmsMentorship = await User.find({ role: "program_manager", programs: programId, isArchived: { $ne: true } }).select("name email");
+      for (const pm of pmsMentorship) {
+        if (pm.email) {
+          sendMentorshipChangeRequestEmail({
+            adminEmail: pm.email,
+            adminName: pm.name,
+            participantName: targetUser.name,
+            participantEmail: targetUser.email,
+            participantPhone: targetUser.phone,
+            volunteerName: volunteer?.name || "Volunteer",
+            programName: program.name,
+            requestId: mentorshipApprovalRequestId,
+          }).catch(console.error);
+        }
+      }
 
       delete body.handledBy;
     }

@@ -182,10 +182,7 @@ function VolunteerDetailContent() {
                 setIsEditing(false);
                 setTimeout(() => setMessage(null), 4000);
             } else if (res.ok) {
-                // Move redirect to after the assigned participants update
-                const newRole = formData.role;
-                const originalRole = user?.role;
-                const roleChanged = newRole && originalRole && newRole !== originalRole;
+                const roleChanged = formData.role && formData.role !== "volunteer";
 
                 if (currentUserRole === 'admin' || currentUserRole === 'program_manager') {
                     // Update assigned participants
@@ -206,8 +203,7 @@ function VolunteerDetailContent() {
                 }
 
                 if (roleChanged) {
-                    setMessage({ type: 'success', text: 'Role updated successfully! Redirecting...' });
-                    router.push(`/programs/${programId}/volunteers`);
+                    router.replace(`/programs/${programId}/volunteers`);
                     return;
                 }
 

@@ -71,10 +71,17 @@ a:not([class]):hover {
 }
 
 /* ─── Focus ring accessibility ───────────────────────────────────────────── */
-:focus-visible {
-  outline: 2px solid #a65353;
-  outline-offset: 2px;
-  border-radius: 4px;
+*,
+:focus-visible,
+input:focus,
+input:focus-visible,
+select:focus,
+select:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+button:focus,
+button:focus-visible {
+  outline: none !important;
 }
 
 /* ─── Scrollbar styling ──────────────────────────────────────────────────── */

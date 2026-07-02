@@ -126,7 +126,7 @@ export default function ProgramManagerProfilePage({ params }: { params: Promise<
         
         if (roleChanged) {
           const from = searchParams.get("from");
-          router.push(from || "/program-managers");
+          router.replace(from || "/program-managers");
           return;
         }
 

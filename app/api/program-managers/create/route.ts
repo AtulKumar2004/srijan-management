@@ -25,13 +25,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanPhone = String(phone).trim().replace(/\D/g, "");
+    if (!/^\d{10}$/.test(cleanPhone)) {
+      return NextResponse.json(
+        { error: "Phone number must be exactly 10 digits." },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
-    // Check if user already exists
-    const existing = await User.findOne({ $or: [{ email }, { phone }] });
-    if (existing) {
+    const cleanEmail = String(email).trim().toLowerCase();
+    const existingEmail = await User.findOne({ email: { $regex: new RegExp(`^${cleanEmail}$`, "i") } });
+    const existingPhone = await User.findOne({ phone: cleanPhone });
+
+    if (existingEmail && existingPhone) {
       return NextResponse.json(
-        { error: "A user with this email or phone number already exists." },
+        { error: "A user with this email address and phone number already exists." },
+        { status: 400 }
+      );
+    } else if (existingEmail) {
+      return NextResponse.json(
+        { error: "A user with this email address already exists." },
+        { status: 400 }
+      );
+    } else if (existingPhone) {
+      return NextResponse.json(
+        { error: "A user with this phone number already exists." },
         { status: 400 }
       );
     }
@@ -41,8 +61,8 @@ export async function POST(req: NextRequest) {
 
     const user = await User.create({
       name,
-      email,
-      phone,
+      email: cleanEmail,
+      phone: cleanPhone,
       address,
       password: hashedPassword,
       role: "program_manager",

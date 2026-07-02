@@ -1,11 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Menu, X, User, Bell } from "lucide-react";
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isAboutPage = pathname === "/about";
   const [user, setUser] = useState<{ email: string; role: string; _id: string; isArchived?: boolean } | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -36,7 +38,18 @@ export default function Header() {
   };
 
   return (
-    <header className="shadow-md border-b border-gray-400 relative" style={{ backgroundImage: 'url(/HeaderBack.png)', backgroundSize: '22%', backgroundRepeat: 'repeat' }}>
+    <header
+      className={`relative transition-colors duration-300 ${
+        isAboutPage
+          ? "bg-[#B58251] border-b-0 shadow-none text-white"
+          : "shadow-md border-b border-gray-400"
+      }`}
+      style={{
+        backgroundImage: isAboutPage ? "none" : "url(/HeaderBack.png)",
+        backgroundSize: "22%",
+        backgroundRepeat: "repeat",
+      }}
+    >
       <div className="container mx-auto px-4 py-1.5 sm:py-2">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 sm:space-x-3">
@@ -45,8 +58,8 @@ export default function Header() {
               className="cursor-pointer flex justify-center items-center gap-2"
               aria-label="Go to dashboard"
             >
-              <img src="/SrijanLogo4.png" className="rounded-full w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12" alt="Srijan Logo" />
-              <h1 className="text-xl sm:text-2xl text-amber-700 font-bold">Srijan</h1>
+              <img src="/SrijanLogo4.png" className="rounded-full w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12" alt="Srijan Youth Festival Logo" />
+              <h1 className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isAboutPage ? "text-white" : "text-amber-700"}`}>SRIJAN</h1>
             </button>
           </div>
 

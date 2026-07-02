@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useModalStore } from "@/store/modalStore";
-import { UserPlus, Eye, Edit, Trash2, Shield, Search, X, CheckCircle2, AlertCircle, ArrowLeft, Phone, ChevronDown } from "lucide-react";
+import { UserPlus, Edit, Trash2, Shield, Search, X, CheckCircle2, AlertCircle, Phone, ChevronDown } from "lucide-react";
 
 interface ProgramManager {
   _id: string;
@@ -35,6 +35,7 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [expandedManager, setExpandedManager] = useState<string[]>([]);
   const { showConfirm } = useModalStore();
 
@@ -98,13 +99,25 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === "phone") {
+      const restricted = value.replace(/\D/g, "").slice(0, 10);
+      setFormData(prev => ({ ...prev, [name]: restricted }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setMessage(null);
+    setModalError(null);
+
+    if (!/^\d{10}$/.test(formData.phone)) {
+      setModalError("Phone number must be exactly 10 digits.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/program-managers/create", {
@@ -123,10 +136,10 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
         setFormData({ name: "", phone: "", email: "", address: "", level: "1", grade: "A" });
         fetchManagers();
       } else {
-        setMessage({ type: "error", text: data.error || "Failed to add Program Manager" });
+        setModalError(data.error || "Failed to add Program Manager");
       }
     } catch (err) {
-      setMessage({ type: "error", text: "An unexpected error occurred" });
+      setModalError("An unexpected error occurred");
     } finally {
       setSubmitting(false);
     }
@@ -184,11 +197,10 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
 
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-7xl">
         <button
-          onClick={() => router.push(`/programs/${programId}`)}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 font-semibold text-sm transition-colors"
+          onClick={() => router.push('/dashboard')}
+          className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 font-semibold text-sm transition-colors cursor-pointer"
         >
-          <ArrowLeft size={16} />
-          Back to Program Details
+          ← Back
         </button>
 
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
@@ -206,7 +218,7 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
             </div>
 
             <button
-              onClick={() => { setMessage(null); setShowAddModal(true); }}
+              onClick={() => { setMessage(null); setModalError(null); setShowAddModal(true); }}
               className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-sm"
             >
               <UserPlus size={18} />
@@ -443,6 +455,13 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
             </div>
 
             <form onSubmit={handleCreateSubmit} className="p-6 overflow-y-auto space-y-4">
+              {modalError && (
+                <div className="p-3.5 rounded-lg bg-red-50 text-red-700 border border-red-200 flex items-center gap-2 text-sm font-medium">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
+
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-900 font-medium">
                 Adding administrator for program: <span className="font-bold">{program?.name || "Selected Program"}</span>
               </div>
@@ -467,6 +486,9 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
                     type="tel"
                     name="phone"
                     required
+                    maxLength={10}
+                    pattern="\d{10}"
+                    title="Phone number must be exactly 10 digits"
                     value={formData.phone}
                     onChange={handleInputChange}
                     placeholder="e.g. 9876543210"
