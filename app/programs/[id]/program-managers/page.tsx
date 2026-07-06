@@ -547,10 +547,10 @@ export default function ProgramScopedManagersPage({ params }: { params: Promise<
                     onChange={handleInputChange}
                     className="w-full px-3.5 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none bg-white"
                   >
-                    <option value="A+">A+</option>
                     <option value="A">A</option>
                     <option value="B">B</option>
                     <option value="C">C</option>
+                    <option value="D">D</option>
                   </select>
                 </div>
               </div>
