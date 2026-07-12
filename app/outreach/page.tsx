@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { Search, Filter, X, ChevronDown, Phone } from "lucide-react";
+import { Search, Filter, X, ChevronDown, Phone, Download } from "lucide-react";
 import { useModalStore } from "@/store/modalStore";
 
 interface Outreach {
@@ -142,6 +142,58 @@ export default function OutreachPage() {
     }
   };
 
+  const handleDownloadCSV = async () => {
+    const listToDownload = filteredOutreach && filteredOutreach.length > 0 ? filteredOutreach : outreachContacts;
+    if (!listToDownload || listToDownload.length === 0) {
+      await showAlert({ title: "No Data", message: "No outreach contacts available to download.", type: "info" });
+      return;
+    }
+
+    const headers = [
+      "Name",
+      "Phone",
+      "Profession",
+      "Mother Tongue",
+      "Current Location",
+      "Registered By",
+      "Number of Rounds",
+      "Branch",
+      "Paid Status",
+      "Under Which Admin",
+      "Comment",
+      "Created At"
+    ];
+
+    const rows = listToDownload.map(c => {
+      const created = c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '';
+      return [
+        `"${(c.name || '').replace(/"/g, '""')}"`,
+        `"${(c.phone || '').replace(/"/g, '""')}"`,
+        `"${(c.profession || '').replace(/"/g, '""')}"`,
+        `"${(c.motherTongue || '').replace(/"/g, '""')}"`,
+        `"${(c.currentLocation || '').replace(/"/g, '""')}"`,
+        `"${(c.registeredBy || '').replace(/"/g, '""')}"`,
+        `"${c.numberOfRounds !== undefined ? c.numberOfRounds : ''}"`,
+        `"${(c.branch || '').replace(/"/g, '""')}"`,
+        `"${(c.paidStatus || '').replace(/"/g, '""')}"`,
+        `"${(c.underWhichAdmin || '').replace(/"/g, '""')}"`,
+        `"${(c.comment || '').replace(/"/g, '""')}"`,
+        `"${created}"`
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "outreach_contacts.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -169,10 +221,17 @@ export default function OutreachPage() {
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-800">Outreach Contacts</h1>
               <p className="text-sm sm:text-base text-gray-600 mt-1">View and manage outreach contacts</p>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+              <button
+                onClick={handleDownloadCSV}
+                className="flex-1 sm:flex-none px-4 py-2 text-sm sm:text-base bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] font-medium whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Download size={18} className="text-white sm:w-5 sm:h-5" />
+                <span>Download Data</span>
+              </button>
               <button
                 onClick={() => router.push('/outreach/followups')}
-                className="flex-1 sm:flex-none px-4 py-2 text-sm sm:text-base bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] font-medium whitespace-nowrap transition-colors"
+                className="flex-1 sm:flex-none px-4 py-2 text-sm sm:text-base bg-[#A65353] text-white rounded-lg hover:bg-[#8B4545] font-medium whitespace-nowrap transition-colors cursor-pointer"
               >
                 Followups
               </button>

@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Edit2, Save, X, Mail, Phone, MapPin, Briefcase, Calendar, User, Home } from "lucide-react";
 import { useModalStore } from "@/store/modalStore";
+import OutreachRemarkTab from "@/components/OutreachRemarkTab";
 
 interface Outreach {
   _id: string;
@@ -34,6 +35,7 @@ function OutreachDetailsContent() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(searchParams.get('edit') === 'true');
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'remark'>('profile');
   const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
   const [admins, setAdmins] = useState<{ _id: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
@@ -251,9 +253,36 @@ function OutreachDetailsContent() {
               ← Back to Outreach
             </button>
           </div>
+
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-gray-200 mt-6 -mb-4 sm:-mb-6 gap-6 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'profile'
+                  ? 'border-[#A65353] text-[#A65353]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('remark')}
+              className={`pb-3 px-1 font-bold text-base border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'remark'
+                  ? 'border-[#A65353] text-[#A65353]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
+              }`}
+            >
+              Remarks
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+        {activeTab === 'profile' && (
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
               {editing ? "Edit Outreach Contact" : "Contact Information"}
@@ -509,6 +538,16 @@ function OutreachDetailsContent() {
             </div>
           </div>
         </div>
+        )}
+
+        {activeTab === 'remark' && (
+          <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+            <OutreachRemarkTab
+              contactId={userId}
+              canEdit={Boolean(currentUser && ["admin", "program_manager", "volunteer"].includes(currentUser.role))}
+            />
+          </div>
+        )}
       </main>
 
       <Footer />
