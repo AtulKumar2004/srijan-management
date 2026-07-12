@@ -68,6 +68,7 @@ export default function OutreachFollowUpsPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>("");
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [generatedDates, setGeneratedDates] = useState<string[]>([]);
   const [showCalendarPopup, setShowCalendarPopup] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
 
@@ -86,7 +87,7 @@ export default function OutreachFollowUpsPage() {
 
   const fetchPrograms = async () => {
     try {
-      const res = await fetch("/api/programs/all");
+      const res = await fetch("/api/programs");
       if (res.ok) {
         const data = await res.json();
         const progs = data.programs || [];
@@ -110,11 +111,8 @@ export default function OutreachFollowUpsPage() {
           const dates: string[] = Array.from(
             new Set(
               (data.sessions || []).map((s: any) => {
-                const d = new Date(s.sessionDate);
-                const y = d.getFullYear();
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${y}-${m}-${day}`;
+                const dString = typeof s.sessionDate === 'string' ? s.sessionDate : new Date(s.sessionDate).toISOString();
+                return dString.split('T')[0];
               })
             )
           );
@@ -132,6 +130,16 @@ export default function OutreachFollowUpsPage() {
       }
     };
     fetchSessionDates();
+    if (adminName) {
+      fetch(`/api/outreach/followups/dates?adminName=${encodeURIComponent(adminName)}&programId=${encodeURIComponent(selectedProgramId || '')}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && Array.isArray(data.generatedDates)) {
+            setGeneratedDates(data.generatedDates);
+          }
+        })
+        .catch(err => console.error("Failed to fetch generated dates:", err));
+    }
     if (currentUser && adminName) {
       fetchVolunteers(adminName, currentUser, selectedProgramId);
     }
@@ -148,7 +156,7 @@ export default function OutreachFollowUpsPage() {
       }, 10000);
       return () => clearInterval(interval);
     }
-  }, [selectedDate, adminName]);
+  }, [selectedDate, adminName, selectedProgramId]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -156,49 +164,39 @@ export default function OutreachFollowUpsPage() {
 
   const checkAuthAndFetch = async () => {
     try {
-      const authRes = await fetch("/api/auth/me");
-      if (!authRes.ok) {
-        router.push("/login");
-        return;
-      }
+      const response = await fetch("/api/auth/me");
+      if (response.ok) {
+        const authData = await response.json();
+        setCurrentUser(authData.user);
 
-      const authData = await authRes.json();
-      if (!authData.user || !["admin", "volunteer"].includes(authData.user.role)) {
-        router.push("/dashboard");
-        return;
-      }
-
-      setCurrentUser(authData.user);
-
-      let adminNameToUse = "";
-      if (authData.user.role === "admin") {
-        adminNameToUse = authData.user.name;
-        setAdminName(adminNameToUse);
-        await fetchContacts(adminNameToUse);
-      } else {
-        if (authData.user.programs && authData.user.programs.length > 0) {
-          const programId = authData.user.programs[0];
-          const programRes = await fetch(`/api/programs/${programId}`);
-          if (programRes.ok) {
-            const programData = await programRes.json();
-            if (programData.program && programData.program.createdBy) {
-              const adminId = typeof programData.program.createdBy === 'object' 
-                ? programData.program.createdBy._id 
-                : programData.program.createdBy;
-              
-              const adminRes = await fetch(`/api/users/${adminId}`);
-              if (adminRes.ok) {
-                const adminData = await adminRes.json();
-                adminNameToUse = adminData.user?.name || "";
-                setAdminName(adminNameToUse);
-                await fetchContacts(adminNameToUse);
+        let adminNameToUse = "";
+        if (authData.user.role === "admin") {
+          adminNameToUse = authData.user.name;
+          setAdminName(adminNameToUse);
+          await fetchContacts(adminNameToUse);
+        } else {
+          if (authData.user.programs && authData.user.programs.length > 0) {
+            const programId = authData.user.programs[0];
+            const programRes = await fetch(`/api/programs/${programId}`);
+            if (programRes.ok) {
+              const programData = await programRes.json();
+              if (programData.program && programData.program.createdBy) {
+                const adminId = typeof programData.program.createdBy === 'object' 
+                  ? programData.program.createdBy._id 
+                  : programData.program.createdBy;
+                
+                const adminRes = await fetch(`/api/users/${adminId}`);
+                if (adminRes.ok) {
+                  const adminData = await adminRes.json();
+                  adminNameToUse = adminData.user?.name || "";
+                  setAdminName(adminNameToUse);
+                  await fetchContacts(adminNameToUse);
+                }
               }
             }
           }
         }
       }
-      
-      await fetchVolunteers(adminNameToUse, authData.user, selectedProgramId);
     } catch (error) {
       console.error("Error checking auth:", error);
       router.push("/login");
@@ -211,12 +209,15 @@ export default function OutreachFollowUpsPage() {
     
     if (!silent) setLoading(true);
     try {
-      const url = `/api/outreach/followups/by-admin?adminName=${encodeURIComponent(targetAdmin)}&followUpDate=${selectedDate}`;
+      const url = `/api/outreach/followups/by-admin?adminName=${encodeURIComponent(targetAdmin)}&followUpDate=${selectedDate}&programId=${encodeURIComponent(selectedProgramId || '')}`;
 
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setContacts(data.contacts || []);
+        if (data.generatedDates && Array.isArray(data.generatedDates)) {
+          setGeneratedDates(data.generatedDates);
+        }
       }
     } catch (error) {
       console.error("Error fetching contacts:", error);
@@ -243,9 +244,8 @@ export default function OutreachFollowUpsPage() {
           }
         }
       } else {
-        const url = targetProg
-          ? `/api/outreach/followups/volunteers-by-programs?programs=${encodeURIComponent(targetProg)}`
-          : `/api/outreach/followups/volunteers-by-programs?allForAdmin=true`;
+        if (!targetProg) return;
+        const url = `/api/outreach/followups/volunteers-by-programs?programs=${encodeURIComponent(targetProg)}`;
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
@@ -488,9 +488,13 @@ export default function OutreachFollowUpsPage() {
                   setShowCalendarPopup(!showCalendarPopup);
                 }}
                 className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#A65353] text-sm font-semibold cursor-pointer shadow-sm flex items-center justify-between transition-all ${
-                  availableDates.includes(selectedDate)
-                    ? "bg-emerald-50 border-emerald-400 text-emerald-900"
-                    : "bg-amber-50 border-amber-400 text-amber-900"
+                  availableDates.includes(selectedDate) && !generatedDates.includes(selectedDate)
+                    ? "bg-emerald-100 border-emerald-500 text-emerald-950 font-bold"
+                    : availableDates.includes(selectedDate) && generatedDates.includes(selectedDate)
+                    ? "bg-orange-100 border-orange-500 text-orange-950 font-bold"
+                    : !availableDates.includes(selectedDate) && generatedDates.includes(selectedDate)
+                    ? "bg-yellow-100 border-yellow-500 text-yellow-950 font-bold"
+                    : "bg-white border-gray-300 text-gray-800 hover:bg-gray-50"
                 }`}
               >
                 <span>{selectedDate || "Select Date"}</span>
@@ -541,7 +545,27 @@ export default function OutreachFollowUpsPage() {
                         return <div key={idx} className="p-2"></div>;
                       }
                       const isSession = availableDates.includes(dayObj.dateStr);
+                      const isGenerated = generatedDates.includes(dayObj.dateStr);
                       const isSelected = selectedDate === dayObj.dateStr;
+
+                      let btnStyle = "text-gray-700 hover:bg-gray-100";
+                      if (isSelected) {
+                        if (isSession && !isGenerated) {
+                          btnStyle = "bg-emerald-600 text-white shadow-md font-bold ring-2 ring-emerald-300";
+                        } else if (isSession && isGenerated) {
+                          btnStyle = "bg-orange-600 text-white shadow-md font-bold ring-2 ring-orange-300";
+                        } else if (!isSession && isGenerated) {
+                          btnStyle = "bg-yellow-600 text-white shadow-md font-bold ring-2 ring-yellow-300";
+                        } else {
+                          btnStyle = "bg-[#A65353] text-white shadow-md font-bold";
+                        }
+                      } else if (isSession && !isGenerated) {
+                        btnStyle = "bg-emerald-100 text-emerald-950 hover:bg-emerald-200 border border-emerald-400 font-bold shadow-sm";
+                      } else if (isSession && isGenerated) {
+                        btnStyle = "bg-orange-100 text-orange-950 hover:bg-orange-200 border border-orange-400 font-bold shadow-sm";
+                      } else if (!isSession && isGenerated) {
+                        btnStyle = "bg-yellow-100 text-yellow-950 hover:bg-yellow-200 border border-yellow-400 font-bold shadow-sm";
+                      }
 
                       return (
                         <button
@@ -551,23 +575,39 @@ export default function OutreachFollowUpsPage() {
                             setSelectedDate(dayObj.dateStr);
                             setShowCalendarPopup(false);
                           }}
-                          className={`p-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center relative ${
-                            isSelected && isSession
-                              ? "bg-emerald-600 text-white shadow-md font-bold ring-2 ring-emerald-300"
-                              : isSelected
-                              ? "bg-[#A65353] text-white shadow-md font-bold"
-                              : isSession
-                              ? "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 border border-emerald-400 font-bold shadow-sm"
-                              : "text-gray-700 hover:bg-gray-100"
-                          }`}
+                          className={`p-2 text-xs font-semibold rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center relative ${btnStyle}`}
                         >
                           {dayObj.dayNumber}
-                          {isSession && (
-                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-0.5 ${isSelected ? 'bg-white' : 'bg-emerald-600'}`}></span>
+                          {(isSession || isGenerated) && (
+                            <span className={`w-1.5 h-1.5 rounded-full absolute bottom-0.5 ${
+                              isSelected 
+                                ? 'bg-white' 
+                                : isSession && isGenerated 
+                                ? 'bg-orange-600' 
+                                : isSession 
+                                ? 'bg-emerald-600' 
+                                : 'bg-yellow-600'
+                            }`}></span>
                           )}
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Color Legend */}
+                  <div className="mt-3 pt-2 border-t border-gray-100 grid grid-cols-1 gap-1 text-[11px] text-gray-600 font-medium text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded bg-emerald-500 border border-emerald-600 inline-block shrink-0"></span>
+                      <span>Session exists (No list generated)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded bg-orange-500 border border-orange-600 inline-block shrink-0"></span>
+                      <span>Session + List generated</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded bg-yellow-400 border border-yellow-500 inline-block shrink-0"></span>
+                      <span>List generated (No session)</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -606,7 +646,7 @@ export default function OutreachFollowUpsPage() {
                   ))}
                 </select>
 
-                {currentUser?.role === "admin" && (
+                {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && (
                   <button
                     onClick={() => setShowCreateModal(true)}
                     disabled={loading}
@@ -746,7 +786,7 @@ export default function OutreachFollowUpsPage() {
             <p className="text-gray-600 font-semibold text-base">
               No follow-ups found matching your criteria on {selectedDate}
             </p>
-            {currentUser?.role === "admin" && (
+            {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && (
               <p className="text-gray-500 text-sm mt-2">
                 Click "Create List" to randomly distribute temple outreach contacts to your volunteers
               </p>

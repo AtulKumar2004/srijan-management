@@ -84,7 +84,7 @@ function OutreachDetailsContent() {
       }
 
       const authData = await authRes.json();
-      if (!authData.user || !["admin", "volunteer"].includes(authData.user.role)) {
+      if (!authData.user || !["admin", "program_manager", "volunteer"].includes(authData.user.role)) {
         router.push("/dashboard");
         return;
       }

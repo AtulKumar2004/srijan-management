@@ -90,6 +90,23 @@ export async function GET(req: NextRequest) {
       })
       .filter(Boolean);
 
+    const programId = searchParams.get("programId") || searchParams.get("program");
+    let volIdSet: Set<string> | null = null;
+    if (programId && programId.trim() !== "") {
+      const volunteersInProgram = await User.find({
+        programs: programId.trim()
+      }).select("_id").lean();
+      volIdSet = new Set(volunteersInProgram.map(v => v._id.toString()));
+
+      if (currentUser.role !== "volunteer") {
+        contactsWithFollowups = contactsWithFollowups.filter((item: any) => {
+          if (!item || !item.assignedVolunteer) return true; // Keep unassigned contacts available to assign
+          const volId = item.assignedVolunteer._id ? item.assignedVolunteer._id.toString() : item.assignedVolunteer.toString();
+          return volIdSet!.has(volId);
+        });
+      }
+    }
+
     if (currentUser.role === "volunteer") {
       contactsWithFollowups = contactsWithFollowups.filter((item: any) => {
         if (!item || !item.assignedVolunteer) return false;
@@ -98,10 +115,39 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Fetch all distinct followup dates generated across these contacts strictly for this program
+    const contactIds = contacts.map(c => c._id);
+    let allFollowupsForAdmin = await OutreachFollowUp.find({
+      outreachContact: { $in: contactIds },
+      followUpDate: { $ne: null }
+    })
+      .select("followUpDate assignedVolunteer")
+      .lean();
+
+    if (volIdSet) {
+      allFollowupsForAdmin = allFollowupsForAdmin.filter(f => {
+        if (!f.assignedVolunteer) return false;
+        const vId = f.assignedVolunteer._id ? f.assignedVolunteer._id.toString() : f.assignedVolunteer.toString();
+        return volIdSet!.has(vId);
+      });
+    }
+
+    const generatedDates = Array.from(
+      new Set(
+        allFollowupsForAdmin
+          .map((f: any) => {
+            if (!f.followUpDate) return null;
+            return new Date(f.followUpDate).toISOString().split('T')[0];
+          })
+          .filter(Boolean)
+      )
+    ) as string[];
+
     return NextResponse.json({
       success: true,
       contacts: contactsWithFollowups,
-      adminName
+      adminName,
+      generatedDates
     }, { status: 200 });
 
   } catch (error: any) {

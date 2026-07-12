@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-    // Only volunteers and admins can access
-    if (!["admin", "volunteer"].includes(decoded.role)) {
+    // Only volunteers, program managers, and admins can access
+    if (!["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const programsParam = searchParams.get("programs");
     const allForAdmin = searchParams.get("allForAdmin");
 
-    if (allForAdmin === "true" || (decoded.role === "admin" && !programsParam)) {
+    if (allForAdmin === "true" || ((decoded.role === "admin" || decoded.role === "program_manager") && !programsParam)) {
       // Find all programs belonging to or created by this admin
       const adminUser = await User.findById(decoded.userId);
       const adminPrograms = await Program.find({ createdBy: decoded.userId }).select("_id");
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       }
 
       const volunteers = await User.find({
-        role: { $in: ["volunteer", "admin"] },
+        role: { $in: ["volunteer", "program_manager", "admin"] },
         isArchived: { $ne: true },
         $or: queryOr
       }).select("_id name email").sort({ name: 1 });
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 
     // Find volunteers who are in any of these programs
     const volunteers = await User.find({
-      role: { $in: ["volunteer", "admin"] },
+      role: { $in: ["volunteer", "program_manager", "admin"] },
       isArchived: { $ne: true },
       programs: { $in: programIds }
     }).select("_id name email").sort({ name: 1 });
