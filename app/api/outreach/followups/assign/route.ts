@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
 
     const body = await req.json();
-    const { adminName, volunteerIds, followUpDate } = body;
+    const { adminName, volunteerIds, followUpDate, customFormId } = body;
 
     if (!adminName || !volunteerIds || volunteerIds.length === 0 || !followUpDate) {
       return NextResponse.json(
@@ -19,25 +19,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get all outreach contacts for this admin
-    let contacts = await OutreachContact.find({ 
-      underWhichAdmin: adminName
-    }).sort({ createdAt: 1 });
+    // Get outreach contacts for this admin or customFormId
+    let contacts;
+    if (customFormId) {
+      contacts = await OutreachContact.find({ customFormId }).sort({ createdAt: 1 });
+    } else {
+      contacts = await OutreachContact.find({
+        underWhichAdmin: adminName,
+        $or: [
+          { customFormId: { $exists: false } },
+          { customFormId: null }
+        ]
+      }).sort({ createdAt: 1 });
 
-    if (contacts.length === 0) {
-      return NextResponse.json(
-        { message: "No contacts found for this admin" },
-        { status: 200 }
-      );
-    }
-
-    // Filter by same temple name as admin if available
-    const adminUser = await User.findOne({ name: adminName, role: "admin" });
-    if (adminUser && adminUser.connectedToTemple) {
-      const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
-      const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
-      if (sameTempleContacts.length > 0) {
-        contacts = sameTempleContacts;
+      // Filter by same temple name as admin if available
+      const adminUser = await User.findOne({ name: adminName, role: "admin" });
+      if (adminUser && adminUser.connectedToTemple) {
+        const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
+        const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
+        if (sameTempleContacts.length > 0) {
+          contacts = sameTempleContacts;
+        }
       }
     }
 

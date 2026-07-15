@@ -280,13 +280,15 @@ export default function OutreachFormPage() {
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         {/* Header */}
         <div className="mb-6">
-          <button
-            onClick={() => router.push('/login')}
-            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 mb-4 cursor-pointer"
-          >
-            <ArrowLeft size={20} />
-            <span>Back</span>
-          </button>
+          <div className="flex justify-between items-center mb-4">
+            <button
+              onClick={() => router.push('/login')}
+              className="flex items-center gap-2 text-gray-700 hover:text-gray-900 cursor-pointer"
+            >
+              <ArrowLeft size={20} />
+              <span>Back</span>
+            </button>
+          </div>
           
           <div className="flex items-center gap-4 mb-4">
             <div className="w-16 h-16 flex items-center justify-center overflow-hidden">
@@ -302,34 +304,43 @@ export default function OutreachFormPage() {
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-            <label className="cursor-pointer px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <span className="text-gray-700">Upload QR Code</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleQRImageUpload}
-                className="hidden"
-              />
-            </label>
-            {qrImage && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setShowQRModal(true)}
-                  className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
-                >
-                  View QR
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearQR}
-                  className="text-sm text-gray-600 hover:text-gray-700 font-medium cursor-pointer"
-                >
-                  Clear QR
-                </button>
-              </>
-            )}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="cursor-pointer px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                <span className="text-gray-700 font-medium">Upload QR Code</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleQRImageUpload}
+                  className="hidden"
+                />
+              </label>
+              {qrImage && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowQRModal(true)}
+                    className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer px-2 py-1"
+                  >
+                    View QR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearQR}
+                    className="text-sm text-gray-600 hover:text-gray-700 font-medium cursor-pointer px-2 py-1"
+                  >
+                    Clear QR
+                  </button>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={() => router.push('/outreach-form/builder')}
+              className="px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-sm sm:text-base font-semibold shadow-md transition-all cursor-pointer whitespace-nowrap"
+            >
+              Create Personalized Form
+            </button>
           </div>
         </div>
 

@@ -6,8 +6,13 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // Fetch all outreach contacts, sorted by creation date (newest first)
-    const contacts = await OutreachContact.find({})
+    // Fetch all standard outreach contacts (exclude targeted custom form contacts), sorted by creation date
+    const contacts = await OutreachContact.find({
+      $or: [
+        { customFormId: { $exists: false } },
+        { customFormId: null }
+      ]
+    })
       .sort({ createdAt: -1 })
       .lean();
 

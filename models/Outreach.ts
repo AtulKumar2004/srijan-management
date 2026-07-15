@@ -14,6 +14,8 @@ export interface IOutreachContact extends Document {
   underWhichAdmin?: string; // Name of the admin
   assignedVolunteer?: mongoose.Types.ObjectId; // Volunteer assigned for followups
   addedBy?: mongoose.Types.ObjectId; // Volunteer who added this contact
+  customFormId?: mongoose.Types.ObjectId; // Reference to CustomOutreachForm
+  customFields?: { [key: string]: any }; // Custom answers submitted
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +38,8 @@ const OutreachContactSchema = new Schema<IOutreachContact>({
   underWhichAdmin: { type: String, index: true },
   assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  customFormId: { type: mongoose.Schema.Types.ObjectId, ref: "CustomOutreachForm", index: true },
+  customFields: { type: Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

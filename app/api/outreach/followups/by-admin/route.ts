@@ -43,18 +43,33 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch outreach contacts for this admin
-    let contacts = await OutreachContact.find({ underWhichAdmin: adminName })
-      .sort({ createdAt: -1 })
-      .lean();
+    const customFormId = searchParams.get("customFormId");
 
-    // Filter by same temple name as admin if available
-    const adminUser = await User.findOne({ name: adminName, role: "admin" });
-    if (adminUser && adminUser.connectedToTemple) {
-      const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
-      const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
-      if (sameTempleContacts.length > 0) {
-        contacts = sameTempleContacts;
+    // Fetch outreach contacts for this admin or customFormId
+    let contacts;
+    if (customFormId) {
+      contacts = await OutreachContact.find({ customFormId })
+        .sort({ createdAt: -1 })
+        .lean();
+    } else {
+      contacts = await OutreachContact.find({
+        underWhichAdmin: adminName,
+        $or: [
+          { customFormId: { $exists: false } },
+          { customFormId: null }
+        ]
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Filter by same temple name as admin if available
+      const adminUser = await User.findOne({ name: adminName, role: "admin" });
+      if (adminUser && adminUser.connectedToTemple) {
+        const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
+        const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
+        if (sameTempleContacts.length > 0) {
+          contacts = sameTempleContacts;
+        }
       }
     }
 

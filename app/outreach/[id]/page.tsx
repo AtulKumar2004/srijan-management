@@ -21,6 +21,7 @@ interface Outreach {
   paidStatus: string;
   underWhichAdmin?: string;
   comment?: string;
+  customFormId?: string;
   createdAt: Date;
 }
 
@@ -199,6 +200,14 @@ function OutreachDetailsContent() {
     setEditing(false);
   };
 
+  const handleBack = () => {
+    if (outreach && outreach.customFormId) {
+      router.push(`/outreach/targeted/${outreach.customFormId}`);
+    } else {
+      router.push("/outreach");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -247,10 +256,10 @@ function OutreachDetailsContent() {
               <p className="text-sm sm:text-base text-gray-600 mt-1">View and edit outreach contact information</p>
             </div>
             <button
-              onClick={() => router.push("/outreach")}
-              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap"
+              onClick={handleBack}
+              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-medium whitespace-nowrap cursor-pointer"
             >
-              ← Back to Outreach
+              {outreach.customFormId ? "← Back to Targeted Card" : "← Back to Outreach"}
             </button>
           </div>
 

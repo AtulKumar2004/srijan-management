@@ -548,8 +548,18 @@ export default function VolunteersPage() {
   const paginatedVolunteers = filteredVolunteers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleDownloadCSV = async () => {
-    if (filteredVolunteers.length === 0) {
-      await showAlert({ title: "No Data", message: "No data available to download.", type: "info" });
+    const dataToDownload = selectedVolunteers.length > 0
+      ? filteredVolunteers.filter(v => selectedVolunteers.includes(v._id))
+      : filteredVolunteers;
+
+    if (dataToDownload.length === 0) {
+      await showAlert({
+        title: "No Data",
+        message: selectedVolunteers.length > 0
+          ? "No selected volunteers match the current view/filters."
+          : "No data available to download.",
+        type: "info"
+      });
       return;
     }
 
@@ -573,7 +583,7 @@ export default function VolunteersPage() {
       "Created At"
     ];
 
-    const rows = filteredVolunteers.map(v => {
+    const rows = dataToDownload.map(v => {
       const mentorName = v.handledBy && v.handledBy !== 'unassigned'
         ? (handlerNames[v.handledBy] || volunteers.find(vol => vol._id === v.handledBy)?.name || 'N/A')
         : 'N/A';
@@ -653,7 +663,10 @@ export default function VolunteersPage() {
               {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                 <button
                   type="button"
-                  onClick={() => setShowArchived(!showArchived)}
+                  onClick={() => {
+                    setShowArchived(!showArchived);
+                    setSelectedVolunteers([]);
+                  }}
                   className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
                     }`}
                 >

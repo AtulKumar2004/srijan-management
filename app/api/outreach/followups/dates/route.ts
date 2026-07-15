@@ -29,9 +29,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, generatedDates: [] }, { status: 200 });
     }
 
-    let contacts = await OutreachContact.find({ underWhichAdmin: adminName })
-      .select("_id branch")
-      .lean();
+    const customFormId = searchParams.get("customFormId");
+    let contacts;
+    if (customFormId) {
+      contacts = await OutreachContact.find({ customFormId })
+        .select("_id branch")
+        .lean();
+    } else {
+      contacts = await OutreachContact.find({
+        underWhichAdmin: adminName,
+        $or: [
+          { customFormId: { $exists: false } },
+          { customFormId: null }
+        ]
+      })
+        .select("_id branch")
+        .lean();
+    }
 
     const adminUser = await User.findOne({ name: adminName, role: "admin" });
     if (adminUser && adminUser.connectedToTemple) {

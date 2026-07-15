@@ -518,8 +518,18 @@ export default function ParticipantsPage() {
   const paginatedParticipants = filteredParticipants.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleDownloadCSV = async () => {
-    if (filteredParticipants.length === 0) {
-      await showAlert({ title: "No Data", message: "No data available to download.", type: "info" });
+    const dataToDownload = selectedParticipants.length > 0
+      ? filteredParticipants.filter(p => selectedParticipants.includes(p._id))
+      : filteredParticipants;
+
+    if (dataToDownload.length === 0) {
+      await showAlert({
+        title: "No Data",
+        message: selectedParticipants.length > 0
+          ? "No selected participants match the current view/filters."
+          : "No data available to download.",
+        type: "info"
+      });
       return;
     }
 
@@ -543,7 +553,7 @@ export default function ParticipantsPage() {
       "Created At"
     ];
 
-    const rows = filteredParticipants.map(p => {
+    const rows = dataToDownload.map(p => {
       const mentorName = p.handledBy && p.handledBy !== 'unassigned'
         ? (volunteerNames[p.handledBy] || 'N/A')
         : 'N/A';
@@ -617,7 +627,10 @@ export default function ParticipantsPage() {
               {(currentUserRole === 'admin' || currentUserRole === 'program_manager') && (
                 <button
                   type="button"
-                  onClick={() => setShowArchived(!showArchived)}
+                  onClick={() => {
+                    setShowArchived(!showArchived);
+                    setSelectedParticipants([]);
+                  }}
                   className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 font-bold cursor-pointer rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base shadow ${showArchived ? 'bg-gray-800 text-white' : 'bg-[#A65353] text-white hover:bg-[#8e4545]'
                     }`}
                 >
