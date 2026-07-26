@@ -62,15 +62,6 @@ export async function GET(req: NextRequest) {
         .sort({ createdAt: -1 })
         .lean();
 
-      // Filter by same temple name as admin if available
-      const adminUser = await User.findOne({ name: adminName, role: "admin" });
-      if (adminUser && adminUser.connectedToTemple) {
-        const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
-        const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
-        if (sameTempleContacts.length > 0) {
-          contacts = sameTempleContacts;
-        }
-      }
     }
 
     // Fetch followups for the specific date

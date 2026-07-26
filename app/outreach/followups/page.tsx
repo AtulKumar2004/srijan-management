@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Pagination from "@/components/Pagination";
-import { Calendar, Users, UserPlus, Phone, Filter, ChevronDown, ChevronLeft, ChevronRight, Save, RefreshCw, Search, Building2 } from "lucide-react";
+import { Calendar, Users, UserPlus, Phone, Filter, ChevronDown, ChevronLeft, ChevronRight, Save, RefreshCw, Search, Building2, Trash2 } from "lucide-react";
 
 interface OutreachContact {
   _id: string;
@@ -77,6 +77,8 @@ export default function OutreachFollowUpsPage() {
     status: string;
     remarks: string;
   } | null>(null);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const statusOptions = ["Coming", "Not Coming", "May Come", "Not Answered", "Not Called"];
 
@@ -297,6 +299,34 @@ export default function OutreachFollowUpsPage() {
     }
   };
 
+  const handleDeleteList = () => {
+    if (!adminName) return;
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteList = async () => {
+    setShowDeleteModal(false);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/outreach/followups/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminName, followUpDate: selectedDate })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message || 'List deleted successfully' });
+        await fetchContacts();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to delete list' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Failed to delete list' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateFollowUp = async (contactId: string) => {
     if (!editingFollowUp || editingFollowUp.contactId !== contactId) return;
 
@@ -432,12 +462,36 @@ export default function OutreachFollowUpsPage() {
                 )}
               </p>
             </div>
-            <button
-              onClick={() => router.push('/outreach')}
-              className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 font-semibold whitespace-nowrap cursor-pointer"
-            >
-              ← Back
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+              {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  disabled={loading}
+                  className="px-4 py-2 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] transition-colors font-bold text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <UserPlus size={18} />
+                  <span>Create List</span>
+                </button>
+              )}
+              
+              {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && generatedDates.includes(selectedDate) && (
+                <button
+                  onClick={handleDeleteList}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-600 cursor-pointer text-white rounded-lg hover:bg-red-700 transition-colors font-bold text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Trash2 size={18} />
+                  <span>Delete List</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => router.push('/outreach')}
+                className="px-4 py-2 text-sm sm:text-base text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                ← Back
+              </button>
+            </div>
           </div>
         </div>
 
@@ -645,17 +699,6 @@ export default function OutreachFollowUpsPage() {
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
-
-                {(currentUser?.role === "admin" || currentUser?.role === "program_manager") && (
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    disabled={loading}
-                    className="px-4 py-2.5 bg-[#A65353] cursor-pointer text-white rounded-lg hover:bg-[#8B4545] transition-colors font-bold text-sm sm:text-base whitespace-nowrap flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <UserPlus size={18} />
-                    Create List
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1006,6 +1049,45 @@ export default function OutreachFollowUpsPage() {
                   disabled={loading}
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Delete List Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full flex flex-col overflow-hidden border">
+              <div className="p-6 border-b bg-red-50">
+                <h2 className="text-xl font-bold text-red-700 flex items-center gap-2">
+                  <Trash2 className="w-6 h-6" />
+                  Delete Follow-up List
+                </h2>
+              </div>
+              
+              <div className="p-6">
+                <p className="text-gray-700 mb-2">
+                  Are you sure you want to delete the follow-up list for <strong>{selectedDate}</strong>?
+                </p>
+                <p className="text-sm text-gray-500">
+                  This action cannot be undone. All follow-up assignments for this date will be permanently removed.
+                </p>
+              </div>
+
+              <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-5 py-2.5 bg-gray-200 text-gray-800 rounded-xl font-bold hover:bg-gray-300 cursor-pointer transition-colors"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteList}
+                  disabled={loading}
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50 cursor-pointer shadow-md transition-colors"
+                >
+                  {loading ? 'Deleting...' : 'Yes, Delete List'}
                 </button>
               </div>
             </div>

@@ -32,18 +32,9 @@ export async function POST(req: NextRequest) {
         ]
       }).sort({ createdAt: 1 });
 
-      // Filter by same temple name as admin if available
-      const adminUser = await User.findOne({ name: adminName, role: "admin" });
-      if (adminUser && adminUser.connectedToTemple) {
-        const templeRegex = new RegExp(`^${adminUser.connectedToTemple.trim()}$`, "i");
-        const sameTempleContacts = contacts.filter(c => c.branch && templeRegex.test(c.branch));
-        if (sameTempleContacts.length > 0) {
-          contacts = sameTempleContacts;
-        }
-      }
     }
 
-    // Check if follow-ups already exist for this date
+    // Check if ANY follow-ups already exist for this specific list on this date
     const existingFollowUps = await OutreachFollowUp.find({
       outreachContact: { $in: contacts.map(c => c._id) },
       followUpDate: new Date(followUpDate)
@@ -51,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     if (existingFollowUps.length > 0) {
       return NextResponse.json(
-        { error: `Follow-up list already exists for ${followUpDate}. Please delete the existing list first or choose a different date.` },
+        { error: `A follow-up list has already been generated for ${followUpDate} in this section. Please delete the existing list first or choose a different date.` },
         { status: 400 }
       );
     }
@@ -72,7 +63,7 @@ export async function POST(req: NextRequest) {
       const volunteerId = volunteerIds[i];
       const startIndex = i * contactsPerVolunteer;
       const endIndex = Math.min(startIndex + contactsPerVolunteer, shuffledContacts.length);
-      
+
       const contactsToAssign = shuffledContacts.slice(startIndex, endIndex);
 
       // Create followup records for this date without creating any new program sessions
