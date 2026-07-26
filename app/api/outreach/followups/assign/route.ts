@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
     const contactsPerVolunteer = Math.ceil(shuffledContacts.length / volunteerIds.length);
     let createdCount = 0;
 
+    const emailPromises: Promise<void>[] = [];
+
     for (let i = 0; i < volunteerIds.length; i++) {
       const volunteerId = volunteerIds[i];
       const startIndex = i * contactsPerVolunteer;
@@ -82,10 +84,15 @@ export async function POST(req: NextRequest) {
       if (contactsToAssign.length > 0) {
         const volUser = volunteerMap.get(volunteerId.toString());
         if (volUser && volUser.email) {
-          sendOutreachFollowupEmail(volUser.email, volUser.name || "Volunteer", adminName, followUpDate, contactsToAssign.length);
+          emailPromises.push(
+            sendOutreachFollowupEmail(volUser.email, volUser.name || "Volunteer", adminName, followUpDate, contactsToAssign.length)
+          );
         }
       }
     }
+
+    // Wait for all emails to be dispatched before returning the response
+    await Promise.all(emailPromises);
 
     return NextResponse.json({
       success: true,
