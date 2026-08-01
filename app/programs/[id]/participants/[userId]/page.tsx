@@ -102,7 +102,7 @@ function ParticipantDetailContent() {
 
   const fetchVolunteers = async () => {
     try {
-      const res = await fetch('/api/users/by-role?role=volunteer');
+      const res = await fetch(`/api/users/by-role?role=volunteer&programId=${programId}`);
       if (res.ok) {
         const data = await res.json();
         setVolunteers(data.users || []);

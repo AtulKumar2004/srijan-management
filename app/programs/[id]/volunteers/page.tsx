@@ -1645,7 +1645,7 @@ export default function VolunteersPage() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Assign Mentor Volunteer</label>
                 <select value={bulkAssignMentorId} onChange={e => setBulkAssignMentorId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#A65353]">
                   <option value="">-- Unassigned --</option>
-                  {volunteers.map(vol => {
+                  {volunteers.filter(vol => !selectedVolunteers.includes(vol._id)).map(vol => {
                     const volMenteesCount = volunteers.filter(v => v.handledBy === vol._id).length;
                     const totalMentees = (vol.participantsUnder || 0) + volMenteesCount;
                     return (

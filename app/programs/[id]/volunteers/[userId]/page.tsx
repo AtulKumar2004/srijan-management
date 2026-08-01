@@ -87,7 +87,7 @@ function VolunteerDetailContent() {
                 fetch(`/api/users/${userId}`),
                 fetch(`/api/users/by-role?role=participant,volunteer&programId=${programId}`),
                 fetch(`/api/auth/me`),
-                fetch(`/api/users/by-role?role=volunteer`)
+                fetch(`/api/users/by-role?role=volunteer&programId=${programId}`)
             ]);
 
             let vols: UserData[] = [];
@@ -562,7 +562,7 @@ function VolunteerDetailContent() {
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
                                             <option value="">Select Volunteer</option>
-                                            {volunteers.map((v) => (
+                                            {volunteers.filter(v => v._id !== userId).map((v) => (
                                                 <option key={v._id} value={v._id}>
                                                     {v.name} ({v.participantsUnder || 0} mentoring)
                                                 </option>
