@@ -125,7 +125,14 @@ function ParticipantDetailContent() {
           fetchVolunteerName(data.user.registeredBy, setRegisteredByName);
         }
         if (data.user.handledBy && data.user.handledBy !== 'unassigned') {
-          fetchVolunteerName(data.user.handledBy, setHandledByName);
+          fetch(`/api/users/${data.user.handledBy}`).then(r => r.json()).then(d => {
+            if (d?.user?.role === 'volunteer' && d?.user?.name) {
+              setHandledByName(d.user.name);
+            } else {
+              setHandledByName('N/A');
+              setFormData(prev => ({ ...prev, handledBy: 'unassigned' }));
+            }
+          }).catch(() => setHandledByName('N/A'));
         } else {
           setHandledByName('N/A');
         }

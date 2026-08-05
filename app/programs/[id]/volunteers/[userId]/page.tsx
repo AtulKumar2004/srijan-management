@@ -119,8 +119,13 @@ function VolunteerDetailContent() {
                         setHandledByName(m.name);
                     } else {
                         fetch(`/api/users/${data.user.handledBy}`).then(r => r.json()).then(d => {
-                            if (d?.user?.name) setHandledByName(d.user.name);
-                        }).catch(() => { });
+                            if (d?.user?.role === 'volunteer' && d?.user?.name) {
+                                setHandledByName(d.user.name);
+                            } else {
+                                setHandledByName('N/A');
+                                setFormData(prev => ({ ...prev, handledBy: 'unassigned' }));
+                            }
+                        }).catch(() => setHandledByName('N/A'));
                     }
                 } else {
                     setHandledByName('N/A');
@@ -267,9 +272,11 @@ function VolunteerDetailContent() {
                 <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="w-full sm:w-auto">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Volunteer Details</h1>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+                                {user?.role === 'program_manager' ? 'Program Manager' : user?.role === 'admin' ? 'Admin' : 'Volunteer'} Details
+                            </h1>
                             <p className="text-sm sm:text-base text-gray-600 mt-1">
-                                {isEditing ? 'Edit volunteer information' : 'View volunteer information'}
+                                {isEditing ? 'Edit' : 'View'} {user?.role === 'program_manager' ? 'program manager' : user?.role === 'admin' ? 'admin' : 'volunteer'} information
                             </p>
                         </div>
                         <div className="flex gap-3 w-full sm:w-auto">
