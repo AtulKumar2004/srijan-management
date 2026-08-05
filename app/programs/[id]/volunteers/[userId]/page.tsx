@@ -557,7 +557,7 @@ function VolunteerDetailContent() {
                                     {isEditing && canEditHandledBy ? (
                                         <select
                                             name="handledBy"
-                                            value={formData.handledBy || ''}
+                                            value={formData.handledBy === 'unassigned' ? '' : formData.handledBy || ''}
                                             onChange={handleInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
@@ -763,18 +763,9 @@ function VolunteerDetailContent() {
                                     <label className="block text-sm font-bold text-gray-700 mb-2">
                                         Mentoring
                                     </label>
-                                    {isEditing && (currentUserRole === 'admin' || currentUserRole === 'program_manager') ? (
-                                        <input
-                                            type="number"
-                                            name="participantsUnder"
-                                            value={formData.participantsUnder || 0}
-                                            onChange={handleInputChange}
-                                            min="0"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        />
-                                    ) : (
-                                        <p className="text-gray-800 py-2">{user.participantsUnder || 0}</p>
-                                    )}
+                                    <p className="text-gray-800 py-2">
+                                        {assignedIds.length}
+                                    </p>
                                 </div>
                             </div>
                         </div>

@@ -64,6 +64,9 @@ export async function PATCH(
       const defaultPassword = "Volunteer@123";
       const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
+      const requester = await User.findById(request.requestedBy).select("role");
+      const requesterRole = requester?.role;
+
       const user = await User.create({
         name: request.name,
         email: request.email,
@@ -81,7 +84,7 @@ export async function PATCH(
         grade: request.grade,
         role: "volunteer",
         registeredBy: request.requestedBy,
-        handledBy: "unassigned",
+        handledBy: requesterRole === "volunteer" ? request.requestedBy : "unassigned",
         isActive: true,
       });
 

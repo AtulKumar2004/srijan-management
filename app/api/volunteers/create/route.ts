@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
         grade,
         role: "volunteer",
         registeredBy: decoded.userId,
-        handledBy: handledBy || "unassigned",
+        handledBy: handledBy || (decoded.role === "volunteer" ? decoded.userId : "unassigned"),
         isActive: true,
       });
 

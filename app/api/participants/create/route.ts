@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 
       // Track who created the participant if logged in
       registeredBy: registeredBy || creatorUserId,
-      handledBy: handledBy || creatorUserId,
+      handledBy: handledBy || (creatorRole === "volunteer" ? creatorUserId : "unassigned"),
 
       // Created by admin/volunteer flow, so activate immediately
       isActive: true,

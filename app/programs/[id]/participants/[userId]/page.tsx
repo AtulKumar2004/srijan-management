@@ -723,18 +723,9 @@ function ParticipantDetailContent() {
                   <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
                     Registered By
                   </label>
-                  {isEditing && currentUserId !== userId ? (
-                    <input
-                      type="text"
-                      name="registeredBy"
-                      value={formData.registeredBy || ''}
-                      onChange={handleInputChange}
-                      placeholder="Enter name"
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  ) : (
-                    <p className="text-sm sm:text-base text-gray-800 py-2">{registeredByName}</p>
-                  )}
+                  <p className="text-sm sm:text-base text-gray-800 py-2">
+                    {registeredByName}
+                  </p>
                 </div>
 
                 {/* Mentor */}
@@ -745,7 +736,7 @@ function ParticipantDetailContent() {
                   {isEditing && canEditHandledBy ? (
                     <select
                       name="handledBy"
-                      value={formData.handledBy || ''}
+                      value={formData.handledBy === 'unassigned' ? '' : formData.handledBy || ''}
                       onChange={handleInputChange}
                       className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
