@@ -178,19 +178,10 @@ function LoginForm() {
             {/* Quick Actions */}
             <div className="mt-6 pt-6 border-t border-cyan-200">
               <p className="text-center text-sm text-gray-600 mb-3 font-semibold">Quick Actions</p>
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  href="/attendance"
-                  className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-cyan-50 hover:from-blue-100 hover:to-cyan-100 rounded-lg border border-cyan-200 transition-all shadow-sm hover:shadow-md"
-                >
-                  <ClipboardList className="w-8 h-8 text-cyan-600 mb-2" />
-                  <span className="text-sm font-semibold text-cyan-700">Attendance</span>
-                  <span className="text-xs text-gray-500 text-center mt-1">Mark attendance</span>
-                </Link>
-                
+              <div className="flex justify-center">
                 <Link
                   href="/outreach-form"
-                  className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 rounded-lg border border-orange-200 transition-all shadow-sm hover:shadow-md"
+                  className="w-full sm:w-1/2 flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-50 to-yellow-50 hover:from-orange-100 hover:to-yellow-100 rounded-lg border border-orange-200 transition-all shadow-sm hover:shadow-md"
                 >
                   <Target className="w-8 h-8 text-orange-600 mb-2" />
                   <span className="text-sm font-semibold text-orange-700">Outreach</span>

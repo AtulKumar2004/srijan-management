@@ -296,7 +296,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
       }
     }
 
-    if (actorRole === "volunteer" && !targetUser.handledBy && body.handledBy !== undefined && String(body.handledBy).trim() !== "") {
+    if (actorRole === "volunteer" && (!targetUser.handledBy || targetUser.handledBy === "unassigned") && body.handledBy !== undefined && String(body.handledBy).trim() !== "" && String(body.handledBy).trim() !== "unassigned") {
       const programId = body.programId || targetUser.programs?.[0];
 
       if (!programId) {

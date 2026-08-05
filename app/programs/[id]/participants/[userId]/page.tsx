@@ -132,6 +132,7 @@ function ParticipantDetailContent() {
             } else {
               setHandledByName('N/A');
               setFormData(prev => ({ ...prev, handledBy: 'unassigned' }));
+              setUser(prev => prev ? { ...prev, handledBy: 'unassigned' } : prev);
             }
           }).catch(() => setHandledByName('N/A'));
         } else {

@@ -36,8 +36,19 @@ export default function OutreachFormPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
+    const fetchAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          setCurrentUser(data.user);
+        }
+      } catch (e) {}
+    };
+    fetchAuth();
     fetchAdmins();
     fetchTemples();
     // Load QR code from localStorage
@@ -335,12 +346,14 @@ export default function OutreachFormPage() {
               )}
             </div>
 
-            <button
-              onClick={() => router.push('/outreach-form/builder')}
-              className="px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-sm sm:text-base font-semibold shadow-md transition-all cursor-pointer whitespace-nowrap"
-            >
-              Create Personalized Form
-            </button>
+            {currentUser && ['admin', 'volunteer', 'program_manager'].includes(currentUser.role) && (
+              <button
+                onClick={() => router.push('/outreach-form/builder')}
+                className="px-4 py-2 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-sm sm:text-base font-semibold shadow-md transition-all cursor-pointer whitespace-nowrap"
+              >
+                Create Personalized Form
+              </button>
+            )}
           </div>
         </div>
 

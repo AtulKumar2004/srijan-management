@@ -163,13 +163,15 @@ export default function TargetedOutreachPage() {
               </p>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => router.push('/outreach-form/builder')}
-                className="px-4 py-2.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer flex-1 sm:flex-none"
-              >
-                <Plus size={18} />
-                <span>Create Personalized Form</span>
-              </button>
+              {currentUser && ['admin', 'volunteer', 'program_manager'].includes(currentUser.role) && (
+                <button
+                  onClick={() => router.push('/outreach-form/builder')}
+                  className="px-4 py-2.5 bg-[#A65353] hover:bg-[#8e4545] text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer flex-1 sm:flex-none"
+                >
+                  <Plus size={18} />
+                  <span>Create Personalized Form</span>
+                </button>
+              )}
               <button
                 onClick={() => router.push('/outreach')}
                 className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"

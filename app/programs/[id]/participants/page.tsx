@@ -1106,7 +1106,7 @@ export default function ParticipantsPage() {
                     >
                       Overview
                     </button>
-                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === currentUserId)) || participant._id === currentUserId) && (
+                    {(currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!participant.handledBy || participant.handledBy === 'unassigned' || participant.handledBy === currentUserId)) || participant._id === currentUserId) && (
                       <button
                         onClick={() => router.push(`/programs/${programId}/participants/${participant._id}?edit=true`)}
                         className="flex-1 px-4 sm:px-6 py-2 bg-[#A65353] text-white cursor-pointer rounded transition-colors text-sm sm:text-base"
