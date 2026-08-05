@@ -37,8 +37,11 @@ export async function GET(
     // Sort levelHistory chronologically ascending
     levelHistory.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
 
-    // Fetch all scheduled sessions for this program
-    const allSessions = await Session.find({ programId }).sort({ sessionDate: 1 }).lean();
+    // Fetch all scheduled sessions for this program (excluding deleted ones)
+    const allSessions = await Session.find({ 
+      programId, 
+      isDeleted: { $ne: true } 
+    }).sort({ sessionDate: 1 }).lean();
 
     // Fetch all attendance records for this user in this program where status is present
     const attendanceRecords = await Attendance.find({
