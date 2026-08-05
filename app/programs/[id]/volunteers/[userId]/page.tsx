@@ -16,6 +16,7 @@ interface UserData {
     phone?: string;
     role: string;
     profession?: string;
+    workplace?: string;
     homeTown?: string;
     connectedToTemple?: string;
     gender?: string;
@@ -613,6 +614,24 @@ function VolunteerDetailContent() {
                                         />
                                     ) : (
                                         <p className="text-gray-800 py-2">{user.profession || 'N/A'}</p>
+                                    )}
+                                </div>
+
+                                {/* Workplace */}
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                                        Workplace
+                                    </label>
+                                    {isEditing ? (
+                                        <input
+                                            type="text"
+                                            name="workplace"
+                                            value={formData.workplace || ''}
+                                            onChange={handleInputChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        />
+                                    ) : (
+                                        <p className="text-gray-800 py-2">{user.workplace || 'N/A'}</p>
                                     )}
                                 </div>
 

@@ -92,7 +92,7 @@ async function updateUserHandler(req: NextRequest, params: Promise<{ id: string 
     // Fields that participants/guests/volunteers can update
     const editableFields = [
       "name", "phone", "email", "address", "gender",
-      "dateOfBirth", "profession", "homeTown",
+      "dateOfBirth", "profession", "workplace", "homeTown",
       "connectedToTemple", "numberOfRounds", "level",
       "grade", "howDidYouHearAboutUs", "isActive",
       "maritalStatus", "registeredBy", "handledBy",

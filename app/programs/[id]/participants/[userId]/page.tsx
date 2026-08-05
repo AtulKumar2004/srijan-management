@@ -15,6 +15,7 @@ interface UserData {
   phone?: string;
   role: string;
   profession?: string;
+  workplace?: string;
   homeTown?: string;
   connectedToTemple?: string;
   gender?: string;
@@ -202,7 +203,7 @@ function ParticipantDetailContent() {
         setTimeout(() => setMessage(null), 4000);
       } else if (res.ok) {
         const roleChanged = formData.role && formData.role !== "participant";
-        
+
         if (roleChanged) {
           router.replace(`/programs/${programId}/participants`);
           return;
@@ -571,6 +572,24 @@ function ParticipantDetailContent() {
                     />
                   ) : (
                     <p className="text-sm sm:text-base text-gray-800 py-2">{user.profession || 'N/A'}</p>
+                  )}
+                </div>
+
+                {/* Workplace */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-1.5 sm:mb-2">
+                    Workplace
+                  </label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="workplace"
+                      value={formData.workplace || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-base text-gray-800 py-2">{user.workplace || 'N/A'}</p>
                   )}
                 </div>
 
