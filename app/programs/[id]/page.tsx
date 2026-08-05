@@ -139,8 +139,7 @@ export default function ProgramDetailsPage() {
       bgColor: "#FFFBEB",
       route: `/attendance?programId=${programId}`,
       description: "Mark attendance for sessions",
-      hideForParticipant: false,
-      anyone: true
+      hideForParticipant: true
     },
     {
       title: "analysis",

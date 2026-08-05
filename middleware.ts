@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 // protected sections
-const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach", "/notifications", "/programs"];
+const protectedRoutes = ["/dashboard", "/profile", "/admin", "/guests", "/outreach", "/notifications", "/programs", "/attendance"];
 
 // pages that logged-in users shouldn't access
 const authPages = ["/login", "/signup"];
@@ -95,9 +95,40 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
+    // Restrict attendance to admins, program managers, and volunteers
+    if (pathname.startsWith("/attendance") && !["admin", "program_manager", "volunteer"].includes(decoded.role)) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     // Restrict notifications to only admins, program managers, and volunteers
     if (pathname.startsWith("/notifications") && !["admin", "program_manager", "volunteer"].includes(decoded.role)) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
+    // Restrict programs sub-routes based on role
+    if (pathname.startsWith("/programs/")) {
+      const parts = pathname.split('/');
+      if (parts.length >= 4) {
+        const programId = parts[2];
+        const subRoute = parts[3];
+
+        if (decoded.role !== 'admin') {
+          // program-managers is admin only
+          if (subRoute === 'program-managers') {
+            return NextResponse.redirect(new URL(`/programs/${programId}`, req.url));
+          }
+          
+          // analysis, followups are Admin & Program Manager only
+          if (['analysis', 'followups'].includes(subRoute) && decoded.role !== 'program_manager') {
+            return NextResponse.redirect(new URL(`/programs/${programId}`, req.url));
+          }
+          
+          // volunteers, sessions are Admin, Program Manager, Volunteer only
+          if (['volunteers', 'sessions'].includes(subRoute) && decoded.role === 'participant') {
+            return NextResponse.redirect(new URL(`/programs/${programId}`, req.url));
+          }
+        }
+      }
     }
 
     // Restrict admin pages to only admins
@@ -125,6 +156,8 @@ export const config = {
     "/notifications/:path*",
     "/programs",
     "/programs/:path*",
+    "/attendance",
+    "/attendance/:path*",
     "/login",
     "/signup",
   ],

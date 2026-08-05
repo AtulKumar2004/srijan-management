@@ -52,6 +52,7 @@ export default function AttendancePage() {
   const [searchedParticipant, setSearchedParticipant] = useState<Participant | null>(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // New participant form state
@@ -62,8 +63,25 @@ export default function AttendancePage() {
   });
 
   useEffect(() => {
+    const fetchAuth = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user?.role === 'participant') {
+            router.replace('/dashboard');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    fetchAuth();
     fetchPrograms();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (selectedProgram) {
@@ -259,6 +277,15 @@ export default function AttendancePage() {
       setLoading(false);
     }
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FFF8E7] items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#A65353] mx-auto"></div>
+        <p className="text-gray-600 mt-4 font-semibold">Verifying access...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFF8E7]" style={{

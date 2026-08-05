@@ -45,12 +45,12 @@ function ParticipantDetailContent() {
   const searchParams = useSearchParams();
   const programId = params.id as string;
   const userId = params.userId as string;
-  const isEditMode = searchParams.get('edit') === 'true';
 
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isResolvingPermissions, setIsResolvingPermissions] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(isEditMode);
+  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<UserData>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -76,11 +76,16 @@ function ParticipantDetailContent() {
       const allowed = currentUserRole === 'admin' || currentUserRole === 'program_manager' || (currentUserRole === 'volunteer' && (!user.handledBy || user.handledBy === 'unassigned' || user.handledBy === currentUserId)) || userId === currentUserId;
       if (!allowed) {
         setIsEditing(false);
+        if (searchParams.get('edit') === 'true') {
+          setToast({ type: 'error', text: 'You are not authorized to edit this profile.' });
+          router.replace(`/programs/${programId}/participants/${userId}`);
+        }
       } else {
         setIsEditing(searchParams.get('edit') === 'true');
       }
+      setIsResolvingPermissions(false);
     }
-  }, [user, currentUserRole, currentUserId, userId, searchParams]);
+  }, [user, currentUserRole, currentUserId, userId, searchParams, programId, router]);
 
   useEffect(() => {
     if (!toast) return;
@@ -234,7 +239,7 @@ function ParticipantDetailContent() {
     setMessage(null);
   };
 
-  if (loading) {
+  if (loading || isResolvingPermissions) {
     return (
       <div className="min-h-screen flex flex-col">
         <Header />

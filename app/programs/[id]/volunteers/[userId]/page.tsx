@@ -48,10 +48,10 @@ function VolunteerDetailContent() {
     const [assignedIds, setAssignedIds] = useState<string[]>([]);
     const [volunteers, setVolunteers] = useState<UserData[]>([]);
     const [handledByName, setHandledByName] = useState<string>('N/A');
-    const isEditMode = searchParams.get('edit') === 'true';
     const [loading, setLoading] = useState(true);
+    const [isResolvingPermissions, setIsResolvingPermissions] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [isEditing, setIsEditing] = useState(isEditMode);
+    const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<UserData>>({});
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -75,11 +75,16 @@ function VolunteerDetailContent() {
             const canEdit = currentUserRole === 'admin' || currentUserRole === 'program_manager' || userId === currentUserId || (currentUserRole === 'volunteer' && user.handledBy === currentUserId);
             if (!canEdit) {
                 setIsEditing(false);
+                if (searchParams.get('edit') === 'true') {
+                    setMessage({ type: 'error', text: 'You are not authorized to edit this profile.' });
+                    router.replace(`/programs/${programId}/volunteers/${userId}`);
+                }
             } else {
                 setIsEditing(searchParams.get('edit') === 'true');
             }
+            setIsResolvingPermissions(false);
         }
-    }, [currentUserRole, currentUserId, userId, user, searchParams]);
+    }, [currentUserRole, currentUserId, userId, user, searchParams, programId, router]);
 
     const fetchUser = async () => {
         try {
@@ -235,7 +240,7 @@ function VolunteerDetailContent() {
         setMessage(null);
     };
 
-    if (loading) {
+    if (loading || isResolvingPermissions) {
         return (
             <div className="min-h-screen flex flex-col">
                 <Header />
