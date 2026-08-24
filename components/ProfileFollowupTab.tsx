@@ -291,7 +291,7 @@ export default function ProfileFollowupTab({ userId, programId }: ProfileFollowu
 
                 {/* Custom Interactive Calendar Popup */}
                 {showCalendarPopup && (
-                  <div className="absolute right-0 mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-72 sm:w-80 animate-in fade-in zoom-in-95 duration-150">
                     {/* Month Header */}
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
                       <span className="font-bold text-gray-800 text-sm">
